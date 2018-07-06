@@ -1,0 +1,7 @@
+<launch>
+    <group ns="agimus/hpp">
+        <node name="hpp_node" pkg="agimus_hpp" type="hpp_node.py"
+            args="hpp-manipulation-server" respawn="true"
+            output="screen" />
+    </group>
+</launch>
