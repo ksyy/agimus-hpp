@@ -34,9 +34,11 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_graph_bridge_msgs
   geometry_msgs
   sensor_msgs
-  sot_hpp_msgs
+  agimus_sot_msgs
   std_msgs
-  trajectory_msgs)
+  trajectory_msgs
+  rospy
+  )
 
 catkin_package()
 
