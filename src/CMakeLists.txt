@@ -1,4 +1,5 @@
 SET (PYTHON_FILE
+    estimation.py
     trajectory_publisher.py
     planning_request_adapter.py
     hpp_server_initializer.py
