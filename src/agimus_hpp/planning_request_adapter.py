@@ -98,7 +98,7 @@ class PlanningRequestAdapter(HppClient):
                 hpp.robot.setJointConfig(self.robot_name + jn, [q])
         return hpp.robot.getCurrentConfig()
 
-    def _estimate (self, hpp, qsensor, stddev, transition = False):
+    def _estimation (self, hpp, qsensor, stddev, transition = False):
         """
         Generate a configuration that make 'sense':
         - no collisions (between objects, robots and world)
@@ -214,7 +214,6 @@ class PlanningRequestAdapter(HppClient):
             p, q = self.tfListener.lookupTransform(world_frame, base, rospy.Time(0))
             self.last_placement = p + q
         except Exception as e:
-            print "non"
             rospy.loginfo( str(e) )
             pass
 
