@@ -19,8 +19,8 @@ class HppClient(object):
     def _connect(self):
         self.hpp = hpp.corbaserver.Client(postContextId = self.postContextId)
         try:
-            cl = hpp.corbaserver.manipulation.CorbaClient (postContextId = self.postContextId)
-            self.manip = cl.manip
+            cl = hpp.corbaserver.manipulation.robot.CorbaClient (postContextId = self.postContextId)
+            self.manip = cl.manipulation
             self.robot = hpp.corbaserver.manipulation.robot.Robot (client = cl)
             self.problemSolver = hpp.corbaserver.manipulation.ProblemSolver(self.robot)
         except Exception, e:

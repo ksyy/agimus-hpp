@@ -48,7 +48,6 @@ class Estimation(HppClient):
         hpp = self._hpp()
         self.mutex.acquire()
 
-        previousConfigShooter = hpp.problem.getSelected("configurationshooter")
         try:
             q_current = hpp.robot.getCurrentConfig()
 
@@ -67,11 +66,10 @@ class Estimation(HppClient):
             rospy.logerr (str(e))
             rospy.logerr (traceback.format_exc())
         finally:
-            hpp.problem.selectProblem("default")
-            hpp.problem.selectConfigurationShooter(previousConfigShooter)
             self.mutex.release()
 
     def _initialize_constraints (self, q_current):
+        from CORBA import UserException
         hpp = self._hpp()
 
         hpp.problem.resetConstraints()
@@ -82,7 +80,7 @@ class Estimation(HppClient):
             try:
                 state_id = manip.graph.getNode (q_current)
                 rospy.loginfo("At {0}, current state: {1}".format(self.last_stamp, state_id))
-            except hpp.Error:
+            except UserException:
                 state_id = rospy.get_param ("default_state_id")
                 rospy.logwarn("At {0}, assumed default current state: {1}".format(self.last_stamp, state_id))
 
@@ -95,6 +93,9 @@ class Estimation(HppClient):
                     default_constraints,
                     [ 0 for _ in default_constraints ])
 
+        # TODO we should solve the constraints, then add the cost and optimize.
+        # TODO Add a configuration constraint fed with the configuration from joint state topic
+        rospy.loginfo("Adding {0}".format(self.last_visual_tag_constraints))
         hpp.problem.addNumericalConstraints ("unused",
                 self.last_visual_tag_constraints,
                 [ 1 for _ in self.last_visual_tag_constraints ])
