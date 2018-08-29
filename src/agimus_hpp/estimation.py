@@ -53,7 +53,14 @@ class Estimation(HppClient):
 
             self._initialize_constraints (q_current)
 
-            success, q_estimated, error = hpp.problem.optimize (q_current)
+            success, q_projected, error = hpp.problem.applyConstraints (q_current)
+
+            if success:
+                success, q_estimated, error = hpp.problem.optimize (q_projected)
+            else:
+                q_estimated = q_projected
+                rospy.logwarn ("Could not apply the constraints {0}".format(error))
+
             rospy.loginfo ("At {0}, estimated {1}".format(self.last_stamp, q_estimated))
             rospy.loginfo ("Success: {0}. error {1}".format(success, error))
 
@@ -62,6 +69,8 @@ class Estimation(HppClient):
                 rospy.logwarn ("Estimation in collision: {0}".format(msg))
 
             self.publishers["estimation"]["semantic_estimation"].publish (q_estimated)
+
+            # TODO publish in tf to enable vizualisation in rviz
         except Exception as e:
             rospy.logerr (str(e))
             rospy.logerr (traceback.format_exc())
