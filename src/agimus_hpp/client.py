@@ -8,23 +8,25 @@ import hpp.gepetto.manipulation
 import ros_tools
 
 class HppClient(object):
-    def __init__ (self, withViewer = False):
+    def __init__ (self, withViewer = False, postContextId = ""):
         self.withViewer = withViewer
+        self.postContextId = postContextId
         self.setHppUrl()
 
     def setHppUrl (self):
         self._connect()
 
     def _connect(self):
-        self.hpp = hpp.corbaserver.Client()
+        self.hpp = hpp.corbaserver.Client(postContextId = self.postContextId)
         try:
-            self.manip = hpp.corbaserver.manipulation.Client ()
-            self.robot = hpp.corbaserver.manipulation.robot.Robot ()
+            cl = hpp.corbaserver.manipulation.CorbaClient (postContextId = self.postContextId)
+            self.manip = cl.manip
+            self.robot = hpp.corbaserver.manipulation.robot.Robot (client = cl)
             self.problemSolver = hpp.corbaserver.manipulation.ProblemSolver(self.robot)
         except Exception, e:
             rospy.logwarn("Could not connect to manipulation server: " + str(e))
-            if hasattr(self, "manip"): delattr(self, "manip") 
-            self.robot = hpp.corbaserver.robot.Robot()
+            if hasattr(self, "manip"): delattr(self, "manip")
+            self.robot = hpp.corbaserver.robot.Robot(client = self.hpp)
             self.problemSolver = hpp.corbaserver.ProblemSolver(self.robot)
         rospy.loginfo("Connected to hpp")
         if self.withViewer:
