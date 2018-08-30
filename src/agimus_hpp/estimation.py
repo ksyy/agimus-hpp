@@ -9,6 +9,7 @@ from std_srvs.srv import SetBool
 from math import cos, sin
 from threading import Lock
 import traceback
+import .ros_tools
 
 class Estimation(HppClient):
     subscribersDict = {
@@ -34,8 +35,9 @@ class Estimation(HppClient):
     def __init__ (self):
         super(Estimation, self).__init__ (postContextId = "_estimation")
 
-        self.subscribers = self._createTopics ("/agimus", self.subscribersDict, True)
-        self.publishers = self._createTopics ("/agimus", self.publishersDict, False)
+        self.subscribers = ros_tools.createSubscribers (self, "/agimus", self.subscribersDict)
+        self.publishers  = ros_tools.createPublishers (self, "/agimus", self.publishersDict)
+        self.services    = ros_tools.createServices (self, "/agimus", self.servicesDict)
         self.joint_state_subs = rospy.Subscriber ("/joint_states", JointState, self.get_joint_state)
 
         self.setHppUrl()

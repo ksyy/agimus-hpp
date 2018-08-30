@@ -28,7 +28,12 @@ def createTopics (object, namespace, topics, subscribe):
         else:
             return rospy.Publisher(namespace, topics[0], queue_size = topics[1])
 
-def createServices (object, namespace, services, serve):
+def createSubscribers (object, namespace, topics):
+    createTopics (object, namespace, topics, True)
+def createPublishers (object, namespace, topics):
+    createTopics (object, namespace, topics, False)
+
+def createServices (object, namespace, services, serve = True):
     """
     \param serve boolean whether this node should serve or use the topics.
     """
@@ -48,3 +53,6 @@ def createServices (object, namespace, services, serve):
         else:
             wait_for_service (namespace)
             return rospy.ServiceProxy(namespace, services[0])
+
+def createServiceProxies (object, namespace, services):
+    createServices (object, namespace, services, False)
