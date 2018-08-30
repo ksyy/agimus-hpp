@@ -13,6 +13,7 @@ class Estimation(HppClient):
     subscribersDict = {
             "estimation": {
                 "request" : [Empty, "estimation" ],
+                "continuous_request" : [Empty, "continuous_estimation" ],
                 },
             "vision": {
                 "tags": [TransformStamped, "get_visual_tag"],
@@ -38,11 +39,21 @@ class Estimation(HppClient):
 
         self.robot_name = rospy.get_param("robot_name", "")
 
+        self.last_stamp_is_ready = False
         self.last_stamp = rospy.Time.now()
         self.last_visual_tag_constraints = list()
 
         self.current_stamp = rospy.Time.now()
         self.current_visual_tag_constraints = list()
+
+    def continuous_estimation(self, msg):
+        # TODO Add ability to stop continuous estimation
+        # TODO I think this should not be done in a topic callback.
+        rate = rospy.Rate(100)
+        while !rospy.is_shutdown():
+            while not self.last_stamp_is_ready:
+                rate.sleep()
+            self.estimation(msg)
 
     def estimation (self, msg):
         hpp = self._hpp()
@@ -53,6 +64,7 @@ class Estimation(HppClient):
 
             self._initialize_constraints (q_current)
 
+            # The optimization expects a configuration which already satisfies the constraints
             success, q_projected, error = hpp.problem.applyConstraints (q_current)
 
             if success:
@@ -75,6 +87,7 @@ class Estimation(HppClient):
             rospy.logerr (str(e))
             rospy.logerr (traceback.format_exc())
         finally:
+            self.last_stamp_is_ready = False
             self.mutex.release()
 
     def _initialize_constraints (self, q_current):
@@ -164,6 +177,7 @@ class Estimation(HppClient):
                 # Reset for next image.
                 self.current_stamp = stamp
                 self.current_visual_tag_constraints = list()
+                self.last_stamp_is_ready = True
             self.current_visual_tag_constraints.append(name)
 
         finally:
