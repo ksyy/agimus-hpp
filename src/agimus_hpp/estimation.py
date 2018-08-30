@@ -102,8 +102,12 @@ class Estimation(HppClient):
                     default_constraints,
                     [ 0 for _ in default_constraints ])
 
+        hpp.problem.createConfigurationConstraint ("config_constraint",
+                q_current, self.config_constraint_weights)
+        hpp.problem.addNumericalConstraints ("unused",
+                [ 'config_constraint', ], [ 1, ])
+
         # TODO we should solve the constraints, then add the cost and optimize.
-        # TODO Add a configuration constraint fed with the configuration from joint state topic
         rospy.loginfo("Adding {0}".format(self.last_visual_tag_constraints))
         hpp.problem.addNumericalConstraints ("unused",
                 self.last_visual_tag_constraints,
@@ -115,11 +119,20 @@ class Estimation(HppClient):
         try:
             hpp = self._hpp()
             for jn, q in zip(js_msg.name, js_msg.position):
-                size = hpp.robot.getJointConfigSize(self.robot_name + jn)
-                if size == 2:
+                jt = hpp.robot.getJointType(self.robot_name + jn)
+                if jt.startswith("JointModelRUB"):
+                    assert hpp.robot.getJointConfigSize(self.robot_name + jn) == 2, self.robot_name + jn + " is not of size 2"
                     hpp.robot.setJointConfig(self.robot_name + jn, [cos(q), sin(q)])
                 else:
+                    assert hpp.robot.getJointConfigSize(self.robot_name + jn) == 1, self.robot_name + jn + " is not of size 1"
                     hpp.robot.setJointConfig(self.robot_name + jn, [q])
+            if not hasattr(self, 'config_constraint_weights'):
+                self.config_constraint_weights = [0,] * robot.getNumberDof()
+                for jn in js_msg.name:
+                    rks = robot.rankInVelocity (self.robot_name + jn)
+                    size = robot.getJointNumberDof(self.robot_name + jn)
+                    rke = rks + size
+                    self.config_constraint_weights[rks:rke] = [10,]*size
         finally:
             self.mutex.release()
 
