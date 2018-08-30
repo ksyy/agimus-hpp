@@ -5,6 +5,7 @@ from dynamic_graph_bridge_msgs.msg import Vector
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Empty
+from std_srvs.srv import SetBool
 from math import cos, sin
 from threading import Lock
 import traceback
@@ -13,10 +14,14 @@ class Estimation(HppClient):
     subscribersDict = {
             "estimation": {
                 "request" : [Empty, "estimation" ],
-                "continuous_request" : [Empty, "continuous_estimation" ],
                 },
             "vision": {
                 "tags": [TransformStamped, "get_visual_tag"],
+                },
+            }
+    servicesDict = {
+            "estimation": {
+                "continuous_estimation" : [SetBool, "continuous_estimation" ],
                 },
             }
     publishersDict = {
@@ -47,15 +52,16 @@ class Estimation(HppClient):
         self.current_visual_tag_constraints = list()
 
     def continuous_estimation(self, msg):
-        # TODO Add ability to stop continuous estimation
-        # TODO I think this should not be done in a topic callback.
+        self.run_continuous_estimation = msg.data
+
+    def spin (self):
         rate = rospy.Rate(100)
         while !rospy.is_shutdown():
-            while not self.last_stamp_is_ready:
-                rate.sleep()
-            self.estimation(msg)
+            if self.run_continuous_estimation and self.last_stamp_is_ready:
+                    self.estimation()
+            rate.sleep()
 
-    def estimation (self, msg):
+    def estimation (self, msg=None):
         hpp = self._hpp()
         self.mutex.acquire()
 

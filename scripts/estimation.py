@@ -6,4 +6,4 @@ rospy.init_node('estimation')
 
 _est = est.Estimation ()
 
-rospy.spin()
+_est.spin()
