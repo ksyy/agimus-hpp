@@ -4,6 +4,7 @@ from .client import HppClient
 from dynamic_graph_bridge_msgs.msg import Vector
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import JointState
+from tf import TransformBroadcaster
 from std_msgs.msg import Empty
 from std_srvs.srv import SetBool
 from math import cos, sin
@@ -39,6 +40,9 @@ class Estimation(HppClient):
         self.publishers  = ros_tools.createPublishers (self, "/agimus", self.publishersDict)
         self.services    = ros_tools.createServices (self, "/agimus", self.servicesDict)
         self.joint_state_subs = rospy.Subscriber ("/joint_states", JointState, self.get_joint_state)
+
+        self.tf_pub = TransformBroadcaster()
+        self.tf_root = "world"
 
         self.setHppUrl()
 
@@ -90,7 +94,10 @@ class Estimation(HppClient):
 
             self.publishers["estimation"]["semantic_estimation"].publish (q_estimated)
 
-            # TODO publish in tf to enable vizualisation in rviz
+            # By default, only the child joints of universe are published.
+            for jn in hpp.getChildJointNames('universe'):
+                T = hpp.getJointPosition (jn)
+                self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, jn, self.tf_root)
         except Exception as e:
             rospy.logerr (str(e))
             rospy.logerr (traceback.format_exc())
