@@ -52,6 +52,20 @@ class PlanningRequestAdapter (Parent):
 
         return qsemantic
 
+    def _validate_configuration (self, q, collision):
+        valid = super(PlanningRequestAdapter, self)._validate_configuration ()
+        if not valid: return False
+
+        from CORBA import UserException
+        manip = self._manip ()
+        try:
+            state_id = manip.graph.getNode (q)
+            rospy.loginfo ("Current estimated configuration is in {0}".format(state_id))
+            return True
+        except UserException as e:
+            rospy.logerr ("Configuration is not valid: {0}".format(e))
+            return False
+
     def _set_init_pose (self, msg):
         self.q_init = self.get_object_root_joints()
         # TODO: WHEN NEEDED Get the joint states of the objects.

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import rospy, hpp.corbaserver
+import ros_tools
 from tf import TransformListener
 from .client import HppClient
 from .trajectory_publisher import JointPathCommandPublisher
@@ -33,13 +34,16 @@ class PlanningRequestAdapter(HppClient):
     subscribersDict = {
             "motion_planning": {
                 "set_goal" : [PlanningGoal, "set_goal" ],
-                "estimate" : [Empty, "estimate" ],
+                # "estimate" : [Empty, "estimate" ],
                 "request" : [Empty, "request" ],
                 "param" : {
                     'init_position_mode': [ String, "init_position_mode" ],
                     'set_init_pose': [ PlanningGoal, "set_init_pose" ],
                     },
                 },
+            "estimation": {
+                "semantic": [ Vector, "estimation_acquisition"],
+                }
             }
     publishersDict = {
             "motion_planning": {
@@ -52,8 +56,9 @@ class PlanningRequestAdapter(HppClient):
 
     def __init__ (self, topicStateFeedback):
         super(PlanningRequestAdapter, self).__init__ ()
-        self.subscribers = self._createTopics ("", self.subscribersDict, True)
-        self.publishers = self._createTopics ("", self.publishersDict, False)
+        self.subscribers = ros_tools.createSubscribers (self, "/agimus", self.subscribersDict)
+        self.publishers = ros_tools.createPublishers (self, "/agimus", self.publishersDict)
+
         self.topicStateFeedback = topicStateFeedback
         self.setHppUrl()
         self.q_init = None
@@ -98,6 +103,7 @@ class PlanningRequestAdapter(HppClient):
                 hpp.robot.setJointConfig(self.robot_name + jn, [q])
         return hpp.robot.getCurrentConfig()
 
+    # TODO this can probably be removed
     def _estimation (self, hpp, qsensor, stddev, transition = False):
         """
         Generate a configuration that make 'sense':
@@ -154,6 +160,31 @@ class PlanningRequestAdapter(HppClient):
         finally:
             self.mutexSolve.release()
 
+    def _validate_configuration (self, q, collision):
+        hpp = self._hpp()
+        if len(q) != hpp.robot.getConfigSize ():
+            rospy.logerr ("Configuration size mismatch: got {0} expected {1}".format(len(q), hpp.robot.getConfigSize ()))
+            return False
+        if collision:
+            valid, msg = hpp.robot.isConfigValid (q)
+            if not valid:
+                rospy.logerr ("Configuration is not valid: {0}".format(msg))
+                return False
+        # TODO in manipulation, check that it has a state.
+        return True
+
+    def estimation_acquisition (self, cfg):
+        hpp = self._hpp()
+        q = cfg.data
+
+        self.mutexSolve.acquire()
+        try:
+            self._validate_configuration (q, collision = True)
+            self.estimated_config = q
+        finally:
+            self.mutexSolve.release()
+
+    # TODO remove me
     def estimate (self, msg):
         hpp = self._hpp()
         self.mutexSolve.acquire()
