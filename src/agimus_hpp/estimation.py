@@ -5,7 +5,7 @@ from dynamic_graph_bridge_msgs.msg import Vector
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import JointState
 from tf import TransformBroadcaster
-from std_msgs.msg import Empty
+from std_msgs.msg import Empty, UInt32
 from std_srvs.srv import SetBool
 from math import cos, sin
 from threading import Lock
@@ -29,7 +29,8 @@ class Estimation(HppClient):
     publishersDict = {
             "estimation": {
                 # "estimation"          : [ Vector, 1],
-                "semantic_estimation" : [ Vector, 1],
+                "semantic" : [ Vector, 1],
+                "state_id" : [ UInt32, 1],
                 },
             }
 
@@ -113,13 +114,20 @@ class Estimation(HppClient):
 
         if hasattr(self, "manip"): # hpp-manipulation:
             # Guess current state
+            # TODO Add a topic that provides to this node the expected current state (from planning)
             manip = self._manip ()
             try:
                 state_id = manip.graph.getNode (q_current)
                 rospy.loginfo("At {0}, current state: {1}".format(self.last_stamp, state_id))
             except UserException:
-                state_id = rospy.get_param ("default_state_id")
-                rospy.logwarn("At {0}, assumed default current state: {1}".format(self.last_stamp, state_id))
+                if hasattr(self, "last_state_id"): # hpp-manipulation:
+                    state_id = self.last_state_id
+                    rospy.logwarn("At {0}, assumed last state: {1}".format(self.last_stamp, state_id))
+                else:
+                    state_id = rospy.get_param ("default_state_id")
+                    rospy.logwarn("At {0}, assumed default current state: {1}".format(self.last_stamp, state_id))
+            self.last_state_id = state_id
+            self.publishers["estimation"]["state_id"].publish (self.state_id)
 
             # copy constraint from state
             manip.problem.setConstraints (state_id, True)
