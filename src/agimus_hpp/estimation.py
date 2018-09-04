@@ -10,7 +10,7 @@ from std_srvs.srv import SetBool
 from math import cos, sin
 from threading import Lock
 import traceback
-import .ros_tools
+import ros_tools
 
 class Estimation(HppClient):
     subscribersDict = {
@@ -63,7 +63,7 @@ class Estimation(HppClient):
 
     def spin (self):
         rate = rospy.Rate(100)
-        while !rospy.is_shutdown():
+        while not rospy.is_shutdown():
             if self.run_continuous_estimation and self.last_stamp_is_ready:
                     self.estimation()
             rate.sleep()
@@ -141,7 +141,7 @@ class Estimation(HppClient):
         hpp.problem.createConfigurationConstraint ("config_constraint",
                 q_current, self.config_constraint_weights)
         hpp.problem.addNumericalConstraints ("unused",
-                [ 'config_constraint', ], [ 1, ])
+                [ 'config_constraint', ], [ 1, ])
 
         # TODO we should solve the constraints, then add the cost and optimize.
         rospy.loginfo("Adding {0}".format(self.last_visual_tag_constraints))
