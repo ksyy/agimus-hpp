@@ -87,6 +87,7 @@ class Estimation(HppClient):
 
     def continuous_estimation(self, msg):
         self.run_continuous_estimation = msg.data
+        return True, "ok"
 
     def spin (self):
         rate = rospy.Rate(100)
