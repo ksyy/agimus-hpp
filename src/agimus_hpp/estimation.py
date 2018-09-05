@@ -199,7 +199,7 @@ class Estimation(HppClient):
 
     def get_visual_tag (self, ts_msg):
         stamp = ts_msg.header.stamp
-        if stamp < ts_msg.header.current_stamp: return
+        if stamp < self.current_stamp: return
         self.mutex.acquire()
         try:
             hpp = self._hpp()
@@ -218,7 +218,7 @@ class Estimation(HppClient):
             hpp.problem.createTransformationConstraint (name, j1, j2, T, [True,]*6)
 
             # If this tag is in the next image:
-            if self.current_stamp > stamp:
+            if self.current_stamp < stamp:
                 # Assume no more visual tag will be received from image at time current_stamp.
                 self.last_stamp = self.current_stamp
                 self.last_visual_tag_constraints = self.current_visual_tag_constraints
