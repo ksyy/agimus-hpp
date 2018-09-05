@@ -44,15 +44,15 @@ def _createTopics (object, namespace, topics, subscribe):
 ## #                   }, }
 ## \endcode
 def createSubscribers (object, namespace, topics):
-    _createTopics (object, namespace, topics, True)
+    return _createTopics (object, namespace, topics, True)
 
 ## Create publishers.
 ## See \ref createSubscribers for a description of the parameters
 ##
 ## \param namespace prefix for the topic names
 ## \param topics a dictionary whose keys are topic names and values are a list [ Type, queue_size ].
-def createPublishers (object, namespace, topics):
-    _createTopics (object, namespace, topics, False)
+def createPublishers (namespace, topics):
+    return _createTopics (None, namespace, topics, False)
 
 def _createServices (object, namespace, services, serve):
     """
@@ -84,4 +84,4 @@ def createServices (object, namespace, services):
 ## See \ref createSubscribers for a description of the parameters
 ## \param services a dictionary whose keys are topic names and values are a list [ Type, ].
 def createServiceProxies (namespace, services):
-    createServices (None, namespace, services, False)
+    return _createServices (None, namespace, services, False)
