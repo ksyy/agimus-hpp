@@ -1,13 +1,19 @@
 <launch>
   <arg name="machine" default="" />
-  <group ns="agimus/hpp">
-    <node if="$(eval machine == '')"
-      name="hpp_node" pkg="agimus_hpp" type="hpp_node.py"
+  <group ns="agimus/hpp" if="$(eval machine == '')">
+    <node name="hpp_node" pkg="agimus_hpp" type="hpp_node.py"
       args="hpp-manipulation-server" respawn="true"
       output="screen" />
-    <node unless="$(eval machine != '')"
-      name="hpp_node" pkg="agimus_hpp" type="hpp_node.py"
+    <node name="hpp_estimation" pkg="agimus_hpp" type="estimation.py"
+      output="screen" />
+  </group>
+
+  <group ns="agimus/hpp" unless="$(eval machine == '')">
+    <node name="hpp_node" pkg="agimus_hpp" type="hpp_node.py"
       args="hpp-manipulation-server" respawn="true"
+      machine="$(arg machine)"
+      output="screen" />
+    <node name="hpp_estimation" pkg="agimus_hpp" type="estimation.py"
       machine="$(arg machine)"
       output="screen" />
   </group>
