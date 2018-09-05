@@ -6,7 +6,7 @@ from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import JointState
 from tf import TransformBroadcaster
 from std_msgs.msg import Empty, UInt32
-from std_srvs.srv import SetBool
+from std_srvs.srv import SetBool, SetBoolRequest
 from math import cos, sin
 from threading import Lock
 import traceback
@@ -59,7 +59,7 @@ class Estimation(HppClient):
                 },
             }
 
-    def __init__ (self):
+    def __init__ (self, continuous_estimation = False):
         super(Estimation, self).__init__ (postContextId = "_estimation")
 
         self.subscribers = ros_tools.createSubscribers (self, "/agimus", self.subscribersDict)
@@ -83,17 +83,23 @@ class Estimation(HppClient):
         self.current_stamp = rospy.Time.now()
         self.current_visual_tag_constraints = list()
 
-        self.run_continuous_estimation = False
+        self.continuous_estimation (SetBoolRequest(continuous_estimation))
 
     def continuous_estimation(self, msg):
         self.run_continuous_estimation = msg.data
+	rospy.loginfo ("Run continuous estimation: {0}".format(self.run_continuous_estimation))
         return True, "ok"
 
     def spin (self):
         rate = rospy.Rate(100)
         while not rospy.is_shutdown():
             if self.run_continuous_estimation and self.last_stamp_is_ready:
-                    self.estimation()
+                rospy.loginfo("Runnning estimation...")
+                self.estimation()
+            else:
+                rospy.logdebug ("run continuous estimation."
+                        +"run_continuous_estimation={0}, last_stamp_is_ready={1}"
+                        .format(self.run_continuous_estimation, self.last_stamp_is_ready))
             rate.sleep()
 
     def estimation (self, msg=None):
@@ -121,11 +127,11 @@ class Estimation(HppClient):
             if not valid:
                 rospy.logwarn ("Estimation in collision: {0}".format(msg))
 
-            self.publishers["estimation"]["semantic_estimation"].publish (q_estimated)
+            self.publishers["estimation"]["semantic"].publish (q_estimated)
 
             # By default, only the child joints of universe are published.
-            for jn in hpp.getChildJointNames('universe'):
-                T = hpp.getJointPosition (jn)
+            for jn in hpp.robot.getChildJointNames('universe'):
+                T = hpp.robot.getJointPosition (jn)
                 self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, jn, self.tf_root)
         except Exception as e:
             rospy.logerr (str(e))
@@ -155,7 +161,7 @@ class Estimation(HppClient):
                     state_id = rospy.get_param ("default_state_id")
                     rospy.logwarn("At {0}, assumed default current state: {1}".format(self.last_stamp, state_id))
             self.last_state_id = state_id
-            self.publishers["estimation"]["state_id"].publish (self.state_id)
+            self.publishers["estimation"]["state_id"].publish (state_id)
 
             # copy constraint from state
             manip.problem.setConstraints (state_id, True)
@@ -199,6 +205,9 @@ class Estimation(HppClient):
                     size = self.robot.getJointNumberDof(robot_name + jn)
                     rke = rks + size
                     self.config_constraint_weights[rks:rke] = [10,]*size
+		rospy.loginfo ("Config constraint weights: {0}".format(self.config_constraint_weights))
+	except UserException as e:
+            rospy.logerror ("Cannot get joint state: {0}".format(e))
         finally:
             self.mutex.release()
 
