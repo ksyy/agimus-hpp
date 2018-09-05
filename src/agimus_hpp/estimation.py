@@ -83,6 +83,8 @@ class Estimation(HppClient):
         self.current_stamp = rospy.Time.now()
         self.current_visual_tag_constraints = list()
 
+        self.run_continuous_estimation = False
+
     def continuous_estimation(self, msg):
         self.run_continuous_estimation = msg.data
 
@@ -190,10 +192,10 @@ class Estimation(HppClient):
                     assert hpp.robot.getJointConfigSize(robot_name + jn) == 1, robot_name + jn + " is not of size 1"
                     hpp.robot.setJointConfig(robot_name + jn, [q])
             if not hasattr(self, 'config_constraint_weights'):
-                self.config_constraint_weights = [0,] * robot.getNumberDof()
+                self.config_constraint_weights = [0,] * self.robot.getNumberDof()
                 for jn in js_msg.name:
-                    rks = robot.rankInVelocity (robot_name + jn)
-                    size = robot.getJointNumberDof(robot_name + jn)
+                    rks = self.robot.rankInVelocity [robot_name + jn]
+                    size = self.robot.getJointNumberDof(robot_name + jn)
                     rke = rks + size
                     self.config_constraint_weights[rks:rke] = [10,]*size
         finally:
