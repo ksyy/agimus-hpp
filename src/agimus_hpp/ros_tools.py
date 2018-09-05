@@ -1,5 +1,8 @@
 import rospy
 
+## Wait indefinitely for a service.
+## \param srv the service name
+## \param time after which a warning is printed using rospy.logwarn
 def wait_for_service (srv, time = 0.2):
     try:
         rospy.wait_for_service(srv, time)
@@ -8,15 +11,14 @@ def wait_for_service (srv, time = 0.2):
         rospy.wait_for_service(srv)
         rospy.logwarn("Service {0} found.".format(srv))
 
-def createTopics (object, namespace, topics, subscribe):
-    """
-    \param subscribe boolean whether this node should subscribe to the topics.
-                             If False, this node publishes to the topics.
-    """
+## Internal function. Use createSubscribers or createPublishers instead.
+## \param subscribe boolean whether this node should subscribe to the topics.
+##        If False, this node publishes to the topics.
+def _createTopics (object, namespace, topics, subscribe):
     if isinstance(topics, dict):
         rets = dict ()
         for k, v in topics.items():
-            rets[k] = createTopics(object, namespace + "/" + k, v, subscribe)
+            rets[k] = _createTopics(object, namespace + "/" + k, v, subscribe)
         return rets
     else:
         if subscribe:
@@ -28,20 +30,38 @@ def createTopics (object, namespace, topics, subscribe):
         else:
             return rospy.Publisher(namespace, topics[0], queue_size = topics[1])
 
+## Create subscribers.
+## \param object the object containing the callbacks.
+## \param namespace prefix for the topic names
+## \param topics a dictionary whose keys are topic names and values are a list [ Type, name_of_callback_in_object ].
+##
+## For instance:
+## \code
+## topics = { "foo" : { "topic1": [ std_msgs.msg.Empty, "function" ] }, }
+## subscribers = createSubscribers (obj, "/bar", topics)
+## # subscribers = { "foo" : {
+## #                   "topic1": rospy.Subscriber ("/bar/foo/topic1", std_msgs.msg.Empty, obj.function)
+## #                   }, }
+## \endcode
 def createSubscribers (object, namespace, topics):
-    createTopics (object, namespace, topics, True)
-def createPublishers (object, namespace, topics):
-    createTopics (object, namespace, topics, False)
+    _createTopics (object, namespace, topics, True)
 
-def createServices (object, namespace, services, serve = True):
+## Create publishers.
+## See \ref createSubscribers for a description of the parameters
+##
+## \param namespace prefix for the topic names
+## \param topics a dictionary whose keys are topic names and values are a list [ Type, queue_size ].
+def createPublishers (object, namespace, topics):
+    _createTopics (object, namespace, topics, False)
+
+def _createServices (object, namespace, services, serve):
     """
     \param serve boolean whether this node should serve or use the topics.
     """
     if isinstance(services, dict):
         rets = dict ()
         for k, v in services.items():
-            rets[k] = createServices(object, namespace + "/" + k, v, serve)
-            # rets.update(createServices(topic_name, k, v, serve))
+            rets[k] = _createServices(object, namespace + "/" + k, v, serve)
         return rets
     else:
         if serve:
@@ -54,5 +74,14 @@ def createServices (object, namespace, services, serve = True):
             wait_for_service (namespace)
             return rospy.ServiceProxy(namespace, services[0])
 
-def createServiceProxies (object, namespace, services):
-    createServices (object, namespace, services, False)
+## Create rospy.Service.
+## See \ref createSubscribers for a description of the parameters
+## \param services a dictionary whose keys are topic names and values are a list [ Type, name_of_callback_in_object ].
+def createServices (object, namespace, services):
+    return _createServices (object, namespace, services, True)
+
+## Create rospy.ServiceProxy.
+## See \ref createSubscribers for a description of the parameters
+## \param services a dictionary whose keys are topic names and values are a list [ Type, ].
+def createServiceProxies (namespace, services):
+    createServices (None, namespace, services, False)

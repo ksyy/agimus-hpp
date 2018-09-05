@@ -30,6 +30,7 @@ def _setGaussianShooter (hpp, q, dev):
             CORBA.Any(CORBA.TC_double, dev))
     hpp.problem.selectConfigurationShooter ("Gaussian")
 
+## \todo document me.
 class PlanningRequestAdapter(HppClient):
     subscribersDict = {
             "motion_planning": {
@@ -57,7 +58,7 @@ class PlanningRequestAdapter(HppClient):
     def __init__ (self, topicStateFeedback):
         super(PlanningRequestAdapter, self).__init__ ()
         self.subscribers = ros_tools.createSubscribers (self, "/agimus", self.subscribersDict)
-        self.publishers = ros_tools.createPublishers (self, "/agimus", self.publishersDict)
+        self.publishers = ros_tools.createPublishers ("/agimus", self.publishersDict)
 
         self.topicStateFeedback = topicStateFeedback
         self.setHppUrl()

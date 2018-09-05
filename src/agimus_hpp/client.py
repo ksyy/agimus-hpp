@@ -7,6 +7,11 @@ import hpp.gepetto
 import hpp.gepetto.manipulation
 import ros_tools
 
+## Handles connection with HPP servers
+#
+# It handles connection with hpp-corbaserver and hpp-manipulation-corba
+#
+# \todo The viewer part is not used anymore. It can probably be removed.
 class HppClient(object):
     def __init__ (self, withViewer = False, postContextId = ""):
         self.withViewer = withViewer
@@ -42,6 +47,9 @@ class HppClient(object):
                 if hasattr(self, "viewer"): delattr(self, "viewer") 
                 rospy.logwarn("Could not connect to gepetto-viewer: " + str(e))
 
+    ## Get the hpp-corbaserver client.
+    ## It handles reconnection if needed.
+    ## \todo rename me
     def _hpp (self, reconnect = True):
         try:
             self.hpp.problem.getAvailable("type")
@@ -53,6 +61,9 @@ class HppClient(object):
             else: raise e
         return self.hpp
 
+    ## Get the hpp-manipulation-corba client.
+    ## It handles reconnection if needed.
+    ## \todo rename me
     def _manip (self, reconnect = True):
         if not hasattr(self, "manip"):
             raise Exception("No manip client")
@@ -66,18 +77,26 @@ class HppClient(object):
             else: raise e
         return self.manip
 
+    ## \deprecated
     def _createTopics (self, namespace, topics, subscribe):
         """
         \param subscribe boolean whether this node should subscribe to the topics.
                                  If False, this node publishes to the topics.
         """
-        return ros_tools.createTopics(self, namespace, topics, subscribe)
+        if subscribe:
+            return ros_tools.createSubscribers (self, namespace, topics)
+        else:
+            return ros_tools.createPublishers (namespace, topics)
 
+    ## \deprecated
     def _createServices (self, namespace, services, serve):
         """
         \param serve boolean whether this node should serve or use the topics.
         """
-        return ros_tools.createServices (self, namespace, services, serve)
+        if serve:
+            return ros_tools.createServices (self, namespace, services)
+        else:
+            return ros_tools.createServiceProxies (namespace, services)
 
     def displayConfig(self, q):
         if self.withViewer and hasattr(self, "viewer"):

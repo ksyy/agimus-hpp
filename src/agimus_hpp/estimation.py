@@ -12,7 +12,30 @@ from threading import Lock
 import traceback
 import ros_tools
 
+### \brief Estimation based on HPP constraint solver.
+##
+## This class solves the following problem.
+##
+## Given:
+## \li the current encoder values,
+## \li tag poses (attached to objects) in the robot camera frame,
+## \li a set of contraints encoding the semantic,
+## estimate the complete robot configuration, including the robot base and, optionally, the object poses.
+##
+## The semantic of the problem (foot on the ground, object on the table...)
+## can be expressed with HPP constraints. The cost is a mixture of:
+## \li visual tag constraints: it penalizes the error between the tag position from CV and from estimation.
+## \li current robot pose: it penalizes the error between the current robot pose from encoders and from estimation.
+##
+## There are two ways of specifying the semantic constraints:
+## \li Core framework: set the ROS parameter "default_constraints" to a list of constraint names.
+## \li Manipulation framework:
+##     - the current state of the manipulation graph is estimated using the last configuration in
+##       HPP server. It is a mixture of the result of the previous estimation and of the encoder values.
+##     - if the current state cannot be estimated, it is assumed it has not changed since last iteration.
+##     - the constraint of this state are used for estimation.
 class Estimation(HppClient):
+    ## Subscribed topics (prefixed by "/agimus")
     subscribersDict = {
             "estimation": {
                 "request" : [Empty, "estimation" ],
@@ -21,11 +44,13 @@ class Estimation(HppClient):
                 "tags": [TransformStamped, "get_visual_tag"],
                 },
             }
+    ## Provided services (prefixed by "/agimus")
     servicesDict = {
             "estimation": {
                 "continuous_estimation" : [SetBool, "continuous_estimation" ],
                 },
             }
+    ## Published topics (prefixed by "/agimus")
     publishersDict = {
             "estimation": {
                 # "estimation"          : [ Vector, 1],
@@ -38,7 +63,7 @@ class Estimation(HppClient):
         super(Estimation, self).__init__ (postContextId = "_estimation")
 
         self.subscribers = ros_tools.createSubscribers (self, "/agimus", self.subscribersDict)
-        self.publishers  = ros_tools.createPublishers (self, "/agimus", self.publishersDict)
+        self.publishers  = ros_tools.createPublishers ("/agimus", self.publishersDict)
         self.services    = ros_tools.createServices (self, "/agimus", self.servicesDict)
         self.joint_state_subs = rospy.Subscriber ("/joint_states", JointState, self.get_joint_state)
 

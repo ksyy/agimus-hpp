@@ -32,6 +32,9 @@ def init_node ():
     rospy.init_node('joint_path_command_publisher')
 
 
+## Unused class
+## \todo This class can probably be removed. I (Joseph Mirabel) implemented it at first
+## to be compliant with JointPathCommand. The use case was UR5.
 class JointPathCommandPublisher:
     def __init__ (self, topic = 'joint_path_command', hasVelocity = False, client = hpp.corbaserver.Client()):
         self.hpp = client
@@ -105,7 +108,19 @@ class JointPathCommandPublisher:
         else:
             print "Failed:", msg.msg
 
+## Samples and publishes a path from HPP into several topics
+##
+## References to be published are:
+## \li robot configuration and velocity (by default, can be parameterized via a service),
+## \li COM position and velocity (requested via a service),
+## \li joint position and velocity (requested via a service),
+## \li link position and velocity (requested via a service),
+## \li frame position and velocity (requested via a service).
+##
+## \todo This class can probably be removed. I (Joseph Mirabel) implemented it at first
+## to be compliant with JointPathCommand. The use case was UR5.
 class HppOutputQueue(HppClient):
+    ## Subscribed topics
     subscribersDict = {
             "hpp": {
                 "target": {
@@ -115,10 +130,12 @@ class HppOutputQueue(HppClient):
                     },
                 },
             }
+    ## Published topics (prefixed by "/hpp/target")
     publishersDist = {
             "read_path_done": [ UInt32, 1 ],
             "publish_done": [ Empty, 1 ]
             }
+    ## Provided services
     servicesDict = {
             "hpp": {
                 "target": {
@@ -185,17 +202,21 @@ class HppOutputQueue(HppClient):
     def __init__ (self):
         super(HppOutputQueue, self).__init__ (withViewer = False)
 
+        ## Publication frequency
         self.frequency = 1. / rospy.get_param ("/sot_controller/dt") # Hz
+        ## \todo visualization is not handle by this class anymore.
         self.viewerFreq = 25 # Hz
+        ## Queue size should be adapted according to the queue size in SoT
         self.queue_size = 10 * self.frequency
         self.queue = Queue.Queue (self.queue_size)
+        ## \todo visualization is not handle by this class anymore.
         self.queueViewer = deque ()
 
         self.setJointNames (SetJointNamesRequest(self._hpp().robot.getJointNames()))
 
-        self.subscribers = ros_tools.createTopics (self, "", self.subscribersDict, True)
-        self.services = ros_tools.createServices (self, "", self.servicesDict, True)
-        self.pubs = ros_tools.createTopics(self, "/hpp/target", self.publishersDist, subscribe = False)
+        self.subscribers = ros_tools.createSubscribers (self, "", self.subscribersDict)
+        self.services = ros_tools.createServices (self, "", self.servicesDict)
+        self.pubs = ros_tools.createPublishers ("/hpp/target", self.publishersDist)
         self.reading = False
         self.firstMsgs = None
 

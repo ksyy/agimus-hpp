@@ -38,6 +38,10 @@ def setParameters (hpp, name, params):
         rospy.logwarn("Could not set parameter " + name + " with value " +
                 str(params) + " of unknown type " + str(type(params)))
 
+## Unused class
+##
+## At the moment, this is not used.
+## \todo remove me
 class HppServerInitializer(HppClient):
     subscribersDict = {
             "hpp": {
