@@ -179,19 +179,21 @@ class Estimation(HppClient):
         self.mutex.acquire()
         try:
             hpp = self._hpp()
+            robot_name = hpp.robot.getRobotName()
+            if len(robot_name) > 0: robot_name = robot_name + "/"
             for jn, q in zip(js_msg.name, js_msg.position):
-                jt = hpp.robot.getJointType(self.robot_name + jn)
+                jt = hpp.robot.getJointType(robot_name + jn)
                 if jt.startswith("JointModelRUB"):
-                    assert hpp.robot.getJointConfigSize(self.robot_name + jn) == 2, self.robot_name + jn + " is not of size 2"
-                    hpp.robot.setJointConfig(self.robot_name + jn, [cos(q), sin(q)])
+                    assert hpp.robot.getJointConfigSize(robot_name + jn) == 2, robot_name + jn + " is not of size 2"
+                    hpp.robot.setJointConfig(robot_name + jn, [cos(q), sin(q)])
                 else:
-                    assert hpp.robot.getJointConfigSize(self.robot_name + jn) == 1, self.robot_name + jn + " is not of size 1"
-                    hpp.robot.setJointConfig(self.robot_name + jn, [q])
+                    assert hpp.robot.getJointConfigSize(robot_name + jn) == 1, robot_name + jn + " is not of size 1"
+                    hpp.robot.setJointConfig(robot_name + jn, [q])
             if not hasattr(self, 'config_constraint_weights'):
                 self.config_constraint_weights = [0,] * robot.getNumberDof()
                 for jn in js_msg.name:
-                    rks = robot.rankInVelocity (self.robot_name + jn)
-                    size = robot.getJointNumberDof(self.robot_name + jn)
+                    rks = robot.rankInVelocity (robot_name + jn)
+                    size = robot.getJointNumberDof(robot_name + jn)
                     rke = rks + size
                     self.config_constraint_weights[rks:rke] = [10,]*size
         finally:
