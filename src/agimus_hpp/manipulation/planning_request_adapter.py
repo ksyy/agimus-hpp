@@ -19,7 +19,7 @@ class PlanningRequestAdapter (Parent):
         return SetStringResponse(True)
 
     def _validate_configuration (self, q, collision):
-        valid = super(PlanningRequestAdapter, self)._validate_configuration ()
+        valid = super(PlanningRequestAdapter, self)._validate_configuration (q, collision)
         if not valid: return False
 
         from CORBA import UserException
