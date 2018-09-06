@@ -35,7 +35,6 @@ class PlanningRequestAdapter(HppClient):
     subscribersDict = {
             "motion_planning": {
                 "set_goal" : [PlanningGoal, "set_goal" ],
-                # "estimate" : [Empty, "estimate" ],
                 "request" : [Empty, "request" ],
                 "param" : {
                     'init_position_mode': [ String, "init_position_mode" ],
@@ -49,8 +48,6 @@ class PlanningRequestAdapter(HppClient):
     publishersDict = {
             "motion_planning": {
                 "problem_solved" : [ ProblemSolved, 1],
-                "estimation"          : [ Vector, 1],
-                "semantic_estimation" : [ Vector, 1],
                 },
             }
     modes = [ "current", "estimated", "user_defined" ]
@@ -103,24 +100,6 @@ class PlanningRequestAdapter(HppClient):
             else:
                 hpp.robot.setJointConfig(self.robot_name + jn, [q])
         return hpp.robot.getCurrentConfig()
-
-    # TODO this can probably be removed
-    def _estimation (self, hpp, qsensor, stddev, transition = False):
-        """
-        Generate a configuration that make 'sense':
-        - no collisions (between objects, robots and world)
-        - the current constraints are satisfied
-        """
-        _setGaussianShooter (hpp, qsensor, stddev)
-        qsemantic = qsensor[:]
-        while True:
-            valid, qsemantic, err = hpp.problem.applyConstraints (qsemantic)
-            if valid:
-                valid, msg = hpp.robot.isConfigValid (qsemantic)
-                if valid: break
-            qsemantic = hpp.robot.shootRandomConfig()
-
-        return qsemantic
 
     def set_goal (self, msg):
         hpp = self._hpp()
@@ -186,47 +165,6 @@ class PlanningRequestAdapter(HppClient):
             self._validate_configuration (q, collision = True)
             self.estimated_config = q
         finally:
-            self.mutexSolve.release()
-
-    # TODO remove me
-    def estimate (self, msg):
-        hpp = self._hpp()
-        self.mutexSolve.acquire()
-        previousConfigShooter = hpp.problem.getSelected("configurationshooter")
-        try:
-            if "estimation" not in hpp.problem.getAvailable("problem"):
-                raise Error("No 'estimation' problem in HPP server.")
-            stddev = rospy.get_param ("estimation/std_dev")
-            self.set_init_pose (PlanningGoal(self.last_placement, self.last_joint_state))
-            qsensor = self.q_init
-
-            # For instance, correct position of objects or foot
-            hpp.problem.selectProblem("estimation")
-            qsemantic = self._estimation (hpp, qsensor, stddev)
-            self.publishers["motion_planning"]["semantic_estimation"].publish (Vector(qsemantic))
-
-            # For instance, ensure balance and/or gaze constraints.
-            hpp.problem.selectProblem("default")
-            self.estimated_config = self._estimation (hpp, qsemantic, stddev, transition=True)
-            self.publishers["motion_planning"]["estimation"].publish (Vector(self.estimated_config))
-
-            hpp.problem.selectProblem("estimation")
-            hpp.problem.setInitialConfig (qsemantic)
-            hpp.problem.resetGoalConfigs ()
-            hpp.problem.addGoalConfig(self.estimated_config)
-            t = hpp.problem.solve()
-            pid = hpp.problem.numberPaths() - 1
-            time = t[0] * 3600 + t[1] * 60 + t[2] + t[3] * 1e-3
-            rospy.loginfo("Path ({}) to reach target found in {} seconds".format(pid, t))
-            self.publishers["motion_planning"]["problem_solved"].publish (ProblemSolved(True, "success", pid))
-        except Exception as e:
-            rospy.loginfo (str(e))
-            rospy.loginfo (traceback.format_exc())
-            rospy.sleep(0.1)
-            self.publishers["motion_planning"]["problem_solved"].publish (ProblemSolved(False, str(e), -1))
-        finally:
-            hpp.problem.selectProblem("default")
-            hpp.problem.selectConfigurationShooter(previousConfigShooter)
             self.mutexSolve.release()
 
     def init_position_mode(self, msg):
