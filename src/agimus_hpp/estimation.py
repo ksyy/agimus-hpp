@@ -185,6 +185,7 @@ class Estimation(HppClient):
         hpp.problem.setNumericalConstraintsLastPriorityOptional (True)
 
     def get_joint_state (self, js_msg):
+        from CORBA import UserException
         self.mutex.acquire()
         try:
             hpp = self._hpp()
