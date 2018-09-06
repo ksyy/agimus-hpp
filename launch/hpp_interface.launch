@@ -5,7 +5,7 @@
       args="hpp-manipulation-server" respawn="true"
       output="screen" />
     <node name="hpp_estimation" pkg="agimus_hpp" type="estimation.py"
-      args="--continuous_estimation"
+      args="--continuous-estimation"
       output="screen" />
   </group>
 
@@ -15,7 +15,7 @@
       machine="$(arg machine)"
       output="screen" />
     <node name="hpp_estimation" pkg="agimus_hpp" type="estimation.py"
-      args="--continuous_estimation"
+      args="--continuous-estimation"
       machine="$(arg machine)"
       output="screen" />
   </group>
