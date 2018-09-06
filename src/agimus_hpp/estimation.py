@@ -103,10 +103,10 @@ class Estimation(HppClient):
             rate.sleep()
 
     def estimation (self, msg=None):
-        hpp = self._hpp()
         self.mutex.acquire()
 
         try:
+            hpp = self._hpp()
             q_current = hpp.robot.getCurrentConfig()
 
             self._initialize_constraints (q_current)
@@ -249,6 +249,5 @@ class Estimation(HppClient):
                 self.current_visual_tag_constraints = list()
                 self.last_stamp_is_ready = True
             self.current_visual_tag_constraints.append(name)
-
         finally:
             self.mutex.release()

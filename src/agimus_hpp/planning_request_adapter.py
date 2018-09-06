@@ -154,7 +154,7 @@ class PlanningRequestAdapter(HppClient):
         return True
 
     def estimation_acquisition (self, cfg):
-        locked = self.mutexSolve.acquire(wait=False)
+        locked = self.mutexSolve.acquire(False) # Return immediately
         if not locked:
             rospy.loginfo("Could not acquire HPP lock")
             return
