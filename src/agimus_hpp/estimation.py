@@ -130,9 +130,16 @@ class Estimation(HppClient):
             self.publishers["estimation"]["semantic"].publish (q_estimated)
 
             # By default, only the child joints of universe are published.
+            robot_name = hpp.robot.getRobotName()
             for jn in hpp.robot.getChildJointNames('universe'):
-                T = hpp.robot.getJointPosition (jn)
-                self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, jn, self.tf_root)
+                links = hpp.robot.getLinkNames(jn)
+                for l in links:
+                    T = hpp.robot.getLinkPosition (l)
+                    if l.startswith(robot_name):
+                        name = l[len(robot_name)+1:]
+                    else:
+                        name = l
+                self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, name, self.tf_root)
         except Exception as e:
             rospy.logerr (str(e))
             rospy.logerr (traceback.format_exc())
