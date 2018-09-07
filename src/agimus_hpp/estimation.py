@@ -111,7 +111,7 @@ class Estimation(HppClient):
 
             self._initialize_constraints (q_current)
 
-            # The optimization expects a configuration which already satisfies the constraints
+            # The optimization expects a configuration which already satisfies the constraints
             projOk, q_projected, error = hpp.problem.applyConstraints (q_current)
 
             if projOk:
@@ -151,7 +151,7 @@ class Estimation(HppClient):
                 else:
                     name = l
                 self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, name, self.tf_root)
-        # Publish the robot link as estimated.
+        # Publish the robot link as estimated.
         robot_joints = filter(lambda x: x.startswith(robot_name), hpp.robot.getAllJointNames())
         for jn in robot_joints:
             links = hpp.robot.getLinkNames(jn)
@@ -191,13 +191,10 @@ class Estimation(HppClient):
                     default_constraints,
                     [ 0 for _ in default_constraints ])
 
-        hpp.problem.createConfigurationConstraint ("config_constraint",
-                q_current, self.config_constraint_weights)
-        if rospy.get_param("use_configuration_contraint", False):
-            hpp.problem.addNumericalConstraints ("unused", [ 'config_constraint', ], [ 1, ])
-
         # TODO we should solve the constraints, then add the cost and optimize.
         rospy.loginfo("Adding {0}".format(self.last_visual_tag_constraints))
+        if hasattr(self, "locked_joints"):
+            hpp.problem.addLockedJointConstraints("unused", self.locked_joints)
         hpp.problem.addNumericalConstraints ("unused", self.last_visual_tag_constraints,
                 [ 1 for _ in self.last_visual_tag_constraints ])
         hpp.problem.setNumericalConstraintsLastPriorityOptional (True)
@@ -210,21 +207,17 @@ class Estimation(HppClient):
             robot_name = hpp.robot.getRobotName()
             if len(robot_name) > 0: robot_name = robot_name + "/"
             for jn, q in zip(js_msg.name, js_msg.position):
-                jt = hpp.robot.getJointType(robot_name + jn)
+                name = robot_name + jn
+                jt = hpp.robot.getJointType(name)
                 if jt.startswith("JointModelRUB"):
-                    assert hpp.robot.getJointConfigSize(robot_name + jn) == 2, robot_name + jn + " is not of size 2"
-                    hpp.robot.setJointConfig(robot_name + jn, [cos(q), sin(q)])
+                    assert hpp.robot.getJointConfigSize(name) == 2, name + " is not of size 2"
+                    qjoint = [cos(q), sin(q)]
                 else:
-                    assert hpp.robot.getJointConfigSize(robot_name + jn) == 1, robot_name + jn + " is not of size 1"
-                    hpp.robot.setJointConfig(robot_name + jn, [q])
-            if not hasattr(self, 'config_constraint_weights'):
-                self.config_constraint_weights = [0,] * self.robot.getNumberDof()
-                for jn in js_msg.name:
-                    rks = self.robot.rankInVelocity [robot_name + jn]
-                    size = self.robot.getJointNumberDof(robot_name + jn)
-                    rke = rks + size
-                    self.config_constraint_weights[rks:rke] = [10,]*size
-		rospy.loginfo ("Config constraint weights: {0}".format(self.config_constraint_weights))
+                    assert hpp.robot.getJointConfigSize(name) == 1, name + " is not of size 1"
+                    qjoint = [q]
+                hpp.problem.createLockedJoint ('lock_' + name, name, qjoint)
+            if not hasattr(self, 'locked_joints'):
+                self.locked_joints = tuple(['lock_'+n for n in js_msg.name])
 	except UserException as e:
             rospy.logerror ("Cannot get joint state: {0}".format(e))
         finally:
