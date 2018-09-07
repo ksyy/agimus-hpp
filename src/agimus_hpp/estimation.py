@@ -182,13 +182,12 @@ class Estimation(HppClient):
 
         hpp.problem.createConfigurationConstraint ("config_constraint",
                 q_current, self.config_constraint_weights)
-        hpp.problem.addNumericalConstraints ("unused",
-                [ 'config_constraint', ], [ 1, ])
+        if rospy.get_param("use_configuration_contraint", False):
+            hpp.problem.addNumericalConstraints ("unused", [ 'config_constraint', ], [ 1, ])
 
         # TODO we should solve the constraints, then add the cost and optimize.
         rospy.loginfo("Adding {0}".format(self.last_visual_tag_constraints))
-        hpp.problem.addNumericalConstraints ("unused",
-                self.last_visual_tag_constraints,
+        hpp.problem.addNumericalConstraints ("unused", self.last_visual_tag_constraints,
                 [ 1 for _ in self.last_visual_tag_constraints ])
         hpp.problem.setNumericalConstraintsLastPriorityOptional (True)
 
