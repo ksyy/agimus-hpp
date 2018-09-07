@@ -112,34 +112,35 @@ class Estimation(HppClient):
             self._initialize_constraints (q_current)
 
             # The optimization expects a configuration which already satisfies the constraints
-            success, q_projected, error = hpp.problem.applyConstraints (q_current)
+            projOk, q_projected, error = hpp.problem.applyConstraints (q_current)
 
-            if success:
-                success, q_estimated, error = hpp.problem.optimize (q_projected)
+            if projOk:
+                optOk, q_estimated, error = hpp.problem.optimize (q_projected)
+                if not optOk:
+                    rospy.loginfo ("Optimisation failed ? error {0}".format(error))
+                rospy.logdebug ("At {0}, estimated {1}".format(self.last_stamp, q_estimated))
+
+                valid, msg = hpp.robot.isConfigValid (q_estimated)
+                if not valid:
+                    rospy.logwarn ("Estimation in collision: {0}".format(msg))
+
+                self.publishers["estimation"]["semantic"].publish (q_estimated)
+
+                # By default, only the child joints of universe are published.
+                robot_name = hpp.robot.getRobotName()
+                for jn in hpp.robot.getChildJointNames('universe'):
+                    links = hpp.robot.getLinkNames(jn)
+                    for l in links:
+                        T = hpp.robot.getLinkPosition (l)
+                        if l.startswith(robot_name):
+                            name = l[len(robot_name)+1:]
+                        else:
+                            name = l
+                    self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, name, self.tf_root)
             else:
-                q_estimated = q_projected
+                hpp.robot.setCurrentConfig (q_current)
+                q_estimated = q_current
                 rospy.logwarn ("Could not apply the constraints {0}".format(error))
-
-            rospy.loginfo ("At {0}, estimated {1}".format(self.last_stamp, q_estimated))
-            rospy.loginfo ("Success: {0}. error {1}".format(success, error))
-
-            valid, msg = hpp.robot.isConfigValid (q_estimated)
-            if not valid:
-                rospy.logwarn ("Estimation in collision: {0}".format(msg))
-
-            self.publishers["estimation"]["semantic"].publish (q_estimated)
-
-            # By default, only the child joints of universe are published.
-            robot_name = hpp.robot.getRobotName()
-            for jn in hpp.robot.getChildJointNames('universe'):
-                links = hpp.robot.getLinkNames(jn)
-                for l in links:
-                    T = hpp.robot.getLinkPosition (l)
-                    if l.startswith(robot_name):
-                        name = l[len(robot_name)+1:]
-                    else:
-                        name = l
-                self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, name, self.tf_root)
         except Exception as e:
             rospy.logerr (str(e))
             rospy.logerr (traceback.format_exc())
