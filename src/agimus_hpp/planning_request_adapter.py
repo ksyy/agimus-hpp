@@ -41,9 +41,6 @@ class PlanningRequestAdapter(HppClient):
                     'set_init_pose': [ PlanningGoal, "set_init_pose" ],
                     },
                 },
-            "estimation": {
-                "semantic": [ Vector, "estimation_acquisition"],
-                }
             }
     publishersDict = {
             "motion_planning": {
@@ -58,10 +55,12 @@ class PlanningRequestAdapter(HppClient):
         self.publishers = ros_tools.createPublishers ("/agimus", self.publishersDict)
 
         self.topicStateFeedback = topicStateFeedback
+        self.topicEstimation = "/agimus/estimation/semantic"
         self.setHppUrl()
         self.q_init = None
         self.init_mode = "user_defined"
         self.get_current_state = None
+        self.get_estimation = None
         self.tfListener = TransformListener()
         self.mutexSolve = Lock()
         if not rospy.has_param ("/motion_planning/tf/world_frame_name"):
@@ -115,6 +114,7 @@ class PlanningRequestAdapter(HppClient):
             elif self.init_mode == "estimated":
                 self.q_init = self.estimated_config
             hpp = self._hpp()
+            self._validate_configuration (self.q_init, collision = True)
             rospy.loginfo("init done")
             rospy.loginfo(str(self.q_init))
             hpp.problem.setInitialConfig(self.q_init)
@@ -154,30 +154,23 @@ class PlanningRequestAdapter(HppClient):
         return True
 
     def estimation_acquisition (self, cfg):
-        locked = self.mutexSolve.acquire(False) # Return immediately
-        if not locked:
-            rospy.loginfo("Could not acquire HPP lock")
-            return
-        try:
-            hpp = self._hpp()
-            q = cfg.data
-
-            self._validate_configuration (q, collision = True)
-            self.estimated_config = q
-        finally:
-            self.mutexSolve.release()
+        self.estimated_config = cfg.data
 
     def init_position_mode(self, msg):
         if msg.data in self.modes:
             if msg.data == self.init_mode: return
             self.init_mode = msg.data
             rospy.loginfo("Initial position mode: %s" % msg.data)
-            if msg.data == "current" or msg.data == "estimated":
+            if self.get_current_state is not None:
+                self.get_current_state.unregister()
+            self.get_current_state = None
+            if self.get_estimation is not None:
+                self.get_estimation.unregister()
+            self.get_estimation = None
+            if msg.data == "current":
                 self.get_current_state = rospy.Subscriber (self.topicStateFeedback, JointState, self.get_joint_state)
-            else:
-                if self.get_current_state is not None:
-                    self.get_current_state.unregister()
-                self.get_current_state = None
+            elif msg.data == "estimated":
+                self.get_estimation = rospy.Subscriber (self.topicEstimation, Vector, self.estimation_acquisition)
 
     def get_joint_state (self, msg):
         self.last_joint_state = msg
