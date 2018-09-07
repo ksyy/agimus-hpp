@@ -217,7 +217,7 @@ class Estimation(HppClient):
                     qjoint = [q]
                 hpp.problem.createLockedJoint ('lock_' + name, name, qjoint)
             if not hasattr(self, 'locked_joints'):
-                self.locked_joints = tuple(['lock_'+n for n in js_msg.name])
+                self.locked_joints = tuple(['lock_'+robot_name+n for n in js_msg.name])
 	except UserException as e:
             rospy.logerror ("Cannot get joint state: {0}".format(e))
         finally:
