@@ -126,17 +126,7 @@ class Estimation(HppClient):
 
                 self.publishers["estimation"]["semantic"].publish (q_estimated)
 
-                # By default, only the child joints of universe are published.
-                robot_name = hpp.robot.getRobotName()
-                for jn in hpp.robot.getChildJointNames('universe'):
-                    links = hpp.robot.getLinkNames(jn)
-                    for l in links:
-                        T = hpp.robot.getLinkPosition (l)
-                        if l.startswith(robot_name):
-                            name = l[len(robot_name)+1:]
-                        else:
-                            name = l
-                    self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, name, self.tf_root)
+                self.publish_state (hpp)
             else:
                 hpp.robot.setCurrentConfig (q_current)
                 q_estimated = q_current
@@ -147,6 +137,27 @@ class Estimation(HppClient):
         finally:
             self.last_stamp_is_ready = False
             self.mutex.release()
+
+    ## Publish tranforms to tf
+    # By default, only the child joints of universe are published.
+    def publish_state (self, hpp):
+        robot_name = hpp.robot.getRobotName()
+        for jn in hpp.robot.getChildJointNames('universe'):
+            links = hpp.robot.getLinkNames(jn)
+            for l in links:
+                T = hpp.robot.getLinkPosition (l)
+                if l.startswith(robot_name):
+                    name = l[len(robot_name)+1:]
+                else:
+                    name = l
+                self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, name, self.tf_root)
+        # Publish the robot link as estimated.
+        robot_joints = filter(lambda x: x.startswith(robot_name), hpp.robot.getAllJointNames())
+        for jn in robot_joints:
+            links = hpp.robot.getLinkNames(jn)
+            for name in links:
+                T = hpp.robot.getLinkPosition (name)
+                self.tf_pub.sendTransform (T[0:3], T[3:7], self.last_stamp, name, self.tf_root)
 
     def _initialize_constraints (self, q_current):
         from CORBA import UserException
