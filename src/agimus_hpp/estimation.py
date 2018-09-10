@@ -216,7 +216,7 @@ class Estimation(HppClient):
                     assert hpp.robot.getJointConfigSize(name) == 1, name + " is not of size 1"
                     # Check joint bounds
                     bounds = hpp.robot.getJointBounds(name)
-                    if q-bounds[0] < 0 or q-bounds[1] > 0:
+                    if q-bounds[0] < -1e-3 or q-bounds[1] > 1e-3:
                         rospy.logerr_throttle(1, "Current state {1} of joint {0} out of bounds {2}"
                             .format(name, q, bounds))
                     qjoint = [min(bounds[1],max(bounds[0],q)),]
