@@ -214,12 +214,17 @@ class Estimation(HppClient):
                     qjoint = [cos(q), sin(q)]
                 else:
                     assert hpp.robot.getJointConfigSize(name) == 1, name + " is not of size 1"
-                    qjoint = [q]
+                    # Check joint bounds
+                    bounds = hpp.robot.getJointBounds(name)
+                    if q-bounds[0] < 0 or q-bounds[1] > 0:
+                        rospy.logerr_throttle(1, "Current state {1} of joint {0} out of bounds {2}"
+                            .format(name, q, bounds))
+                    qjoint = [min(bounds[1],max(bounds[0],q)),]
                 hpp.problem.createLockedJoint ('lock_' + name, name, qjoint)
             if not hasattr(self, 'locked_joints'):
                 self.locked_joints = tuple(['lock_'+robot_name+n for n in js_msg.name])
 	except UserException as e:
-            rospy.logerror ("Cannot get joint state: {0}".format(e))
+            rospy.logerr ("Cannot get joint state: {0}".format(e))
         finally:
             self.mutex.release()
 
