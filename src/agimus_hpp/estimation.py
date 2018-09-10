@@ -122,7 +122,7 @@ class Estimation(HppClient):
 
                 valid, msg = hpp.robot.isConfigValid (q_estimated)
                 if not valid:
-                    rospy.logwarn ("Estimation in collision: {0}".format(msg))
+                    rospy.logwarn_throttle (1, "Estimation in collision: {0}".format(msg))
 
                 self.publishers["estimation"]["semantic"].publish (q_estimated)
 
