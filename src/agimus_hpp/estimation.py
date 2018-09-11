@@ -59,13 +59,14 @@ class Estimation(HppClient):
                 },
             }
 
-    def __init__ (self, continuous_estimation = False):
+    def __init__ (self, continuous_estimation = False,
+             joint_states_topic="/joint_states"):
         super(Estimation, self).__init__ (postContextId = "_estimation")
 
         self.subscribers = ros_tools.createSubscribers (self, "/agimus", self.subscribersDict)
         self.publishers  = ros_tools.createPublishers ("/agimus", self.publishersDict)
         self.services    = ros_tools.createServices (self, "/agimus", self.servicesDict)
-        self.joint_state_subs = rospy.Subscriber ("/joint_states", JointState, self.get_joint_state)
+        self.joint_state_subs = rospy.Subscriber (joint_states_topic, JointState, self.get_joint_state)
 
         self.tf_pub = TransformBroadcaster()
         self.tf_root = "world"
@@ -164,6 +165,8 @@ class Estimation(HppClient):
         hpp = self._hpp()
 
         hpp.problem.resetConstraints()
+        if hasattr(self, "locked_joints"):
+            hpp.problem.addLockedJointConstraints("unused", self.locked_joints)
 
         if hasattr(self, "manip"): # hpp-manipulation:
             # Guess current state
@@ -193,8 +196,6 @@ class Estimation(HppClient):
 
         # TODO we should solve the constraints, then add the cost and optimize.
         rospy.loginfo("Adding {0}".format(self.last_visual_tag_constraints))
-        if hasattr(self, "locked_joints"):
-            hpp.problem.addLockedJointConstraints("unused", self.locked_joints)
         hpp.problem.addNumericalConstraints ("unused", self.last_visual_tag_constraints,
                 [ 1 for _ in self.last_visual_tag_constraints ])
         hpp.problem.setNumericalConstraintsLastPriorityOptional (True)
@@ -217,7 +218,7 @@ class Estimation(HppClient):
                     # Check joint bounds
                     bounds = hpp.robot.getJointBounds(name)
                     if q-bounds[0] < -1e-3 or q-bounds[1] > 1e-3:
-                        rospy.logerr_throttle(1, "Current state {1} of joint {0} out of bounds {2}"
+                        rospy.logwarn_throttle(1, "Current state {1} of joint {0} out of bounds {2}"
                             .format(name, q, bounds))
                     qjoint = [min(bounds[1],max(bounds[0],q)),]
                 hpp.problem.createLockedJoint ('lock_' + name, name, qjoint)
