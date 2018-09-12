@@ -67,6 +67,7 @@ class Estimation(HppClient):
         self.publishers  = ros_tools.createPublishers ("/agimus", self.publishersDict)
         self.services    = ros_tools.createServices (self, "/agimus", self.servicesDict)
         self.joint_state_subs = rospy.Subscriber (joint_states_topic, JointState, self.get_joint_state)
+        self.locked_joints = []
 
         self.tf_pub = TransformBroadcaster()
         self.tf_root = "world"
@@ -165,8 +166,6 @@ class Estimation(HppClient):
         hpp = self._hpp()
 
         hpp.problem.resetConstraints()
-        if hasattr(self, "locked_joints"):
-            hpp.problem.addLockedJointConstraints("unused", self.locked_joints)
 
         if hasattr(self, "manip"): # hpp-manipulation:
             # Guess current state
@@ -187,9 +186,11 @@ class Estimation(HppClient):
 
             # copy constraint from state
             manip.problem.setConstraints (state_id, True)
+            hpp.problem.addLockedJointConstraints("unused", self.locked_joints)
         else:
             # hpp-corbaserver: setNumericalConstraints
             default_constraints = rospy.get_param ("default_constraints")
+            hpp.problem.addLockedJointConstraints("unused", self.locked_joints)
             hpp.problem.addNumericalConstraints ("constraints",
                     default_constraints,
                     [ 0 for _ in default_constraints ])
@@ -222,7 +223,7 @@ class Estimation(HppClient):
                             .format(name, q, bounds))
                     qjoint = [min(bounds[1],max(bounds[0],q)),]
                 hpp.problem.createLockedJoint ('lock_' + name, name, qjoint)
-            if not hasattr(self, 'locked_joints'):
+            if len(self.locked_joints) == 0:
                 self.locked_joints = tuple(['lock_'+robot_name+n for n in js_msg.name])
 	except UserException as e:
             rospy.logerr ("Cannot get joint state: {0}".format(e))
