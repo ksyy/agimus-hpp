@@ -1,3 +1,4 @@
-INPUT                  = @PROJECT_SOURCE_DIR@/src/agimus_hpp
-FILE_PATTERNS          = *.py
+INPUT                  = @PROJECT_SOURCE_DIR@/src/agimus_hpp \
+                         @PROJECT_SOURCE_DIR@/doc/
+FILE_PATTERNS          = *.py *.hh
 
