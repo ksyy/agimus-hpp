@@ -147,6 +147,7 @@ class HppOutputQueue(HppClient):
                     "add_operational_frame_velocity": [ SetString, "addOperationalFrameVelocity", ],
 
                     "publish_first": [ std_srvs.srv.Empty, "publishFirst", ],
+                    "get_queue_size": [ std_srvs.srv.GetInt, "getQueueSize", ],
                     }
                 }
             }
@@ -511,3 +512,6 @@ class HppOutputQueue(HppClient):
             rate.sleep()
         self.pubs["publish_done"].publish(Empty())
         rospy.loginfo("Finish publishing queue ({})".format(n))
+
+    def getQueueSize (self, empty):
+        return self.queue.qsize()
