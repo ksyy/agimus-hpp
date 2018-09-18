@@ -147,7 +147,7 @@ class HppOutputQueue(HppClient):
                     "add_operational_frame_velocity": [ SetString, "addOperationalFrameVelocity", ],
 
                     "publish_first": [ std_srvs.srv.Empty, "publishFirst", ],
-                    "get_queue_size": [ std_srvs.srv.GetInt, "getQueueSize", ],
+                    "get_queue_size": [ GetInt, "getQueueSize", ],
                     }
                 }
             }
@@ -482,6 +482,7 @@ class HppOutputQueue(HppClient):
         if self.firstMsgs is not None:
             for topic, msg in zip(self.topics, self.firstMsgs):
                 topic.publish (msg)
+            rospy.loginfo("Published first message")
             self.firstMsgs = None
         else:
             rospy.logerr("Could not print first message")
