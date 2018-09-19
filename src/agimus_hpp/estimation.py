@@ -119,7 +119,14 @@ class Estimation(HppClient):
             if projOk:
                 optOk, q_estimated, error = hpp.problem.optimize (q_projected)
                 if not optOk:
-                    rospy.loginfo ("Optimisation failed ? error {0}".format(error))
+                    from numpy.linalg import norm
+                    errNorm = norm(error)
+                    if errNorm > 1e-2:
+                      rospy.logwarn ("Optimisation failed ? error norm: {0}".format(errNorm))
+                      rospy.logdebug ("estimated == projected: {0}".format(q_projected==q_estimated))
+                    else:
+                      rospy.loginfo ("Optimisation failed ? error norm: {0}".format(errNorm))
+                    rospy.logdebug ("Error {0}".format(error))
                 rospy.logdebug ("At {0}, estimated {1}".format(self.last_stamp, q_estimated))
 
                 valid, msg = hpp.robot.isConfigValid (q_estimated)
@@ -196,10 +203,11 @@ class Estimation(HppClient):
                     [ 0 for _ in default_constraints ])
 
         # TODO we should solve the constraints, then add the cost and optimize.
-        rospy.loginfo("Adding {0}".format(self.last_visual_tag_constraints))
-        hpp.problem.addNumericalConstraints ("unused", self.last_visual_tag_constraints,
-                [ 1 for _ in self.last_visual_tag_constraints ])
-        hpp.problem.setNumericalConstraintsLastPriorityOptional (True)
+        if len(self.last_visual_tag_constraints) > 0:
+            rospy.loginfo("Adding {0}".format(self.last_visual_tag_constraints))
+            hpp.problem.addNumericalConstraints ("unused", self.last_visual_tag_constraints,
+                    [ 1 for _ in self.last_visual_tag_constraints ])
+            hpp.problem.setNumericalConstraintsLastPriorityOptional (True)
 
     def get_joint_state (self, js_msg):
         from CORBA import UserException
@@ -248,6 +256,17 @@ class Estimation(HppClient):
                   ts_msg.transform.rotation.y,
                   ts_msg.transform.rotation.z,
                   ts_msg.transform.rotation.w,]
+            # Compute scalar product between Z axis of camera and of tag.
+            #from hpp import Quaternion
+            #from numpy import array
+            #s = - Quaternion(T[3:]).transform(array([0,0,1]))[2]
+            #
+            # TODO Add a weight between translation and orientation
+            # It should depend on:
+            # - the distance (the farthest, the hardest it is to get the orientation)
+            # - the above scalar product (the closest to 0, the hardest it is to get the orientation)
+            # - the tag size (for an orthogonal tag, an error theta in orientation should be considered
+            #   equivalent to an position error of theta * tag_size)
             hpp.problem.createTransformationConstraint (name, j1, j2, T, [True,]*6)
 
             # If this tag is in the next image:
