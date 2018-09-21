@@ -257,17 +257,23 @@ class Estimation(HppClient):
                   ts_msg.transform.rotation.z,
                   ts_msg.transform.rotation.w,]
             # Compute scalar product between Z axis of camera and of tag.
-            #from hpp import Quaternion
-            #from numpy import array
-            #s = - Quaternion(T[3:]).transform(array([0,0,1]))[2]
-            #
             # TODO Add a weight between translation and orientation
             # It should depend on:
             # - the distance (the farthest, the hardest it is to get the orientation)
+            distW = 1.
             # - the above scalar product (the closest to 0, the hardest it is to get the orientation)
+            from hpp import Quaternion
+            from numpy import array
+            oriW = - Quaternion(T[3:]).transform(array([0,0,1]))[2]
             # - the tag size (for an orthogonal tag, an error theta in orientation should be considered
             #   equivalent to an position error of theta * tag_size)
-            hpp.problem.createTransformationConstraint (name, j1, j2, T, [True,]*6)
+            tagsize = 0.063 * 4 # tag size * 4
+            s = tagsize * oriW * distW
+            rospy.logdebug ("{} {}".format(oriW, s))
+            names = ["P_"+name, "sO_"+name]
+            hpp.problem.createPositionConstraint (names[0], j1, j2, T[:3], [0,0,0], [True,]*3)
+            hpp.problem.createOrientationConstraint ("O_"+name, j1, j2, Quaternion(T[3:]).inv().toTuple(), [True,]*3)
+            hpp.problem.scCreateScalarMultiply (names[1], s, "O_"+name)
 
             # If this tag is in the next image:
             if self.current_stamp < stamp:
@@ -278,6 +284,6 @@ class Estimation(HppClient):
                 self.current_stamp = stamp
                 self.current_visual_tag_constraints = list()
                 self.last_stamp_is_ready = True
-            self.current_visual_tag_constraints.append(name)
+            self.current_visual_tag_constraints.extend(names)
         finally:
             self.mutex.release()
