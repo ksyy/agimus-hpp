@@ -96,7 +96,7 @@ class Estimation(HppClient):
         rate = rospy.Rate(50)
         while not rospy.is_shutdown():
             if self.run_continuous_estimation and self.last_stamp_is_ready:
-                rospy.loginfo("Runnning estimation...")
+                rospy.logdebug("Runnning estimation...")
                 self.estimation()
             else:
                 rospy.logdebug ("run continuous estimation."
@@ -122,12 +122,11 @@ class Estimation(HppClient):
                     from numpy.linalg import norm
                     errNorm = norm(error)
                     if errNorm > 1e-2:
-                      rospy.logwarn ("Optimisation failed ? error norm: {0}".format(errNorm))
-                      rospy.logdebug ("estimated == projected: {0}".format(q_projected==q_estimated))
+                      rospy.logwarn_throttle (1 ,"Optimisation failed ? error norm: {0}".format(errNorm))
+                      rospy.logdebug_throttle (1 ,"estimated == projected: {0}".format(q_projected==q_estimated))
                     else:
-                      rospy.loginfo ("Optimisation failed ? error norm: {0}".format(errNorm))
-                    rospy.logdebug ("Error {0}".format(error))
-                rospy.logdebug ("At {0}, estimated {1}".format(self.last_stamp, q_estimated))
+                      rospy.loginfo_throttle (1 ,"Optimisation failed ? error norm: {0}".format(errNorm))
+                    rospy.logdebug_throttle (1 ,"Error {0}".format(error))
 
                 valid, msg = hpp.robot.isConfigValid (q_estimated)
                 if not valid:
@@ -139,7 +138,7 @@ class Estimation(HppClient):
             else:
                 hpp.robot.setCurrentConfig (q_current)
                 q_estimated = q_current
-                rospy.logwarn ("Could not apply the constraints {0}".format(error))
+                rospy.logwarn_throttle (1, "Could not apply the constraints {0}".format(error))
         except Exception as e:
             rospy.logerr_throttle (1, str(e))
             rospy.logerr_throttle (1, traceback.format_exc())
@@ -180,14 +179,14 @@ class Estimation(HppClient):
             manip = self._manip ()
             try:
                 state_id = manip.graph.getNode (q_current)
-                rospy.loginfo("At {0}, current state: {1}".format(self.last_stamp, state_id))
+                rospy.loginfo_throttle(1, "At {0}, current state: {1}".format(self.last_stamp, state_id))
             except UserException:
                 if hasattr(self, "last_state_id"): # hpp-manipulation:
                     state_id = self.last_state_id
-                    rospy.logwarn("At {0}, assumed last state: {1}".format(self.last_stamp, state_id))
+                    rospy.logwarn_throttle(1, "At {0}, assumed last state: {1}".format(self.last_stamp, state_id))
                 else:
                     state_id = rospy.get_param ("default_state_id")
-                    rospy.logwarn("At {0}, assumed default current state: {1}".format(self.last_stamp, state_id))
+                    rospy.logwarn_throttle(1, "At {0}, assumed default current state: {1}".format(self.last_stamp, state_id))
             self.last_state_id = state_id
             self.publishers["estimation"]["state_id"].publish (state_id)
 
@@ -204,7 +203,7 @@ class Estimation(HppClient):
 
         # TODO we should solve the constraints, then add the cost and optimize.
         if len(self.last_visual_tag_constraints) > 0:
-            rospy.loginfo("Adding {0}".format(self.last_visual_tag_constraints))
+            rospy.loginfo_throttle(1, "Adding {0}".format(self.last_visual_tag_constraints))
             hpp.problem.addNumericalConstraints ("unused", self.last_visual_tag_constraints,
                     [ 1 for _ in self.last_visual_tag_constraints ])
             hpp.problem.setNumericalConstraintsLastPriorityOptional (True)
@@ -269,7 +268,6 @@ class Estimation(HppClient):
             #   equivalent to an position error of theta * tag_size)
             tagsize = 0.063 * 4 # tag size * 4
             s = tagsize * oriW * distW
-            rospy.logdebug ("{} {}".format(oriW, s))
             names = ["P_"+name, "sO_"+name]
             hpp.problem.createPositionConstraint (names[0], j1, j2, T[:3], [0,0,0], [True,]*3)
             hpp.problem.createOrientationConstraint ("O_"+name, j1, j2, Quaternion(T[3:]).inv().toTuple(), [True,]*3)
