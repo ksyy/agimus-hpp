@@ -93,7 +93,7 @@ class Estimation(HppClient):
         return True, "ok"
 
     def spin (self):
-        rate = rospy.Rate(100)
+        rate = rospy.Rate(50)
         while not rospy.is_shutdown():
             if self.run_continuous_estimation and self.last_stamp_is_ready:
                 rospy.loginfo("Runnning estimation...")
@@ -141,8 +141,8 @@ class Estimation(HppClient):
                 q_estimated = q_current
                 rospy.logwarn ("Could not apply the constraints {0}".format(error))
         except Exception as e:
-            rospy.logerr (str(e))
-            rospy.logerr (traceback.format_exc())
+            rospy.logerr_throttle (1, str(e))
+            rospy.logerr_throttle (1, traceback.format_exc())
         finally:
             self.last_stamp_is_ready = False
             self.mutex.release()
