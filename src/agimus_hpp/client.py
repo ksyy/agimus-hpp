@@ -10,11 +10,8 @@ import ros_tools
 ## Handles connection with HPP servers
 #
 # It handles connection with hpp-corbaserver and hpp-manipulation-corba
-#
-# \todo The viewer part is not used anymore. It can probably be removed.
 class HppClient(object):
-    def __init__ (self, withViewer = False, postContextId = ""):
-        self.withViewer = withViewer
+    def __init__ (self, postContextId = ""):
         self.postContextId = postContextId
         self.setHppUrl()
 
@@ -34,18 +31,6 @@ class HppClient(object):
             self.robot = hpp.corbaserver.robot.Robot(client = self.hpp)
             self.problemSolver = hpp.corbaserver.ProblemSolver(self.robot)
         rospy.loginfo("Connected to hpp")
-        if self.withViewer:
-            try:
-                from gepetto.corbaserver import Client as GuiClient
-                viewerClient = GuiClient ()
-                if hasattr(self, "manip"):
-                    self.viewer = hpp.gepetto.manipulation.Viewer (self.problemSolver, viewerClient = viewerClient, displayName = self.hpp.robot.getRobotName())
-                else:
-                    self.viewer = hpp.gepetto.Viewer (self.problemSolver, viewerClient = viewerClient)
-                rospy.loginfo("Connected to gepetto-viewer")
-            except Exception, e:
-                if hasattr(self, "viewer"): delattr(self, "viewer") 
-                rospy.logwarn("Could not connect to gepetto-viewer: " + str(e))
 
     ## Get the hpp-corbaserver client.
     ## It handles reconnection if needed.
@@ -97,8 +82,3 @@ class HppClient(object):
             return ros_tools.createServices (self, namespace, services)
         else:
             return ros_tools.createServiceProxies (namespace, services)
-
-    def displayConfig(self, q):
-        if self.withViewer and hasattr(self, "viewer"):
-            self._hpp()
-            self.viewer (q)

@@ -181,37 +181,15 @@ class HppOutputQueue(HppClient):
         def publish (self, msg):
             assert msg==None
             self.pub.publish(self.msg)
-    class SentToViewer (object):
-        def __init__ (self, parent):
-            self.parent = parent
-
-        def read (self, hpp, uv):
-            if uv:
-                pos = list()
-                for j, prefix, o in self.parent.viewer.robotBodies:
-                    pos.append ( (prefix + o, hpp.robot.getLinkPosition (o) ) )
-                return tuple(pos)
-            else:
-                return ()
-
-        def publish (self, msg):
-            if not isinstance(msg, (tuple, list)) or len(msg) == 0: return
-            for name, pos in msg:
-                self.parent.viewer.client.gui.applyConfiguration(name, pos)
-            self.parent.viewer.client.gui.refresh()
 
     def __init__ (self):
-        super(HppOutputQueue, self).__init__ (withViewer = False)
+        super(HppOutputQueue, self).__init__ ()
 
         ## Publication frequency
         self.frequency = 1. / rospy.get_param ("/sot_controller/dt") # Hz
-        ## \todo visualization is not handle by this class anymore.
-        self.viewerFreq = 25 # Hz
         ## Queue size should be adapted according to the queue size in SoT
         self.queue_size = 10 * self.frequency
         self.queue = Queue.Queue (self.queue_size)
-        ## \todo visualization is not handle by this class anymore.
-        self.queueViewer = deque ()
 
         self.setJointNames (SetJointNamesRequest(self._hpp().robot.getJointNames()))
 
@@ -224,7 +202,6 @@ class HppOutputQueue(HppClient):
         self.resetTopics ()
 
     def resetTopics (self, msg = None):
-        self.topicViewer = self.SentToViewer (self)
         self.topics = [
                 self.Topic (self._readConfigAtParam  , "position", Vector),
                 self.Topic (self._readVelocityAtParam, "velocity", Vector),
@@ -418,12 +395,10 @@ class HppOutputQueue(HppClient):
         rospy.logerr ("Link velocity cannot be obtained from HPP")
         return Vector()
 
-    def readAt (self, pathId, time, uv = False, timeShift = 0):
+    def readAt (self, pathId, time, timeShift = 0):
         hpp = self._hpp()
         hpp.robot.setCurrentConfig( hpp.problem.configAtParam (pathId, time))
         hpp.robot.setCurrentVelocity( hpp.problem.derivativeAtParam (pathId, 1, time))
-        if uv:
-            self.queueViewer.append ((time - timeShift, self.topicViewer.read (hpp, uv)))
         msgs = []
         for topic in self.topics:
             msgs.append (topic.read(hpp))
@@ -436,17 +411,6 @@ class HppOutputQueue(HppClient):
             topic.publish (msg)
         self.queue.task_done()
 
-    def publishViewerAtTime (self, time):
-        if hasattr(self, "viewer"):
-            while len(self.queueViewer) > 0:
-                # There is no message in queueViewer
-                t, msg = self.queueViewer[0]
-                if t < time - 1. / self.frequency:
-                    self.topicViewer.publish (msg)
-                    self.queueViewer.popleft()
-                else:
-                    break
-
     def _read (self, pathId, start, L):
         from math import ceil, floor
         N = int(ceil(abs(L) * self.frequency))
@@ -456,14 +420,9 @@ class HppOutputQueue(HppClient):
         times = (-1 if L < 0 else 1 ) *np.array(range(N+1), dtype=float) / self.frequency
         times[-1] = L
         times += start
-        Nv = int(ceil(float(self.frequency) / float(self.viewerFreq)))
-        updateViewer = [ False ] * (N+1)
-        if hasattr(self, "viewer"):
-            for i in range(0,len(updateViewer), Nv): updateViewer[i] = True
-            updateViewer[-1] = True
         self.firstMsgs = None
-        for t, uv in zip(times, updateViewer):
-            msgs = self.readAt(pathId, t, uv, timeShift = start)
+        for t in times:
+            msgs = self.readAt(pathId, t, timeShift = start)
             if self.firstMsgs is None: self.firstMsgs = msgs
         self.pubs["read_path_done"].publish(UInt32(pathId))
         rospy.loginfo("Finish reading path {}".format(pathId))
@@ -504,12 +463,6 @@ class HppOutputQueue(HppClient):
                 self.publishNext()
                 n += 1
                 # highrate.sleep()
-            self.publishViewerAtTime(dt)
-            rate.sleep()
-        rate = rospy.Rate(self.viewerFreq)
-        while len(self.queueViewer) > 0:
-            dt = time.time() - start
-            self.publishViewerAtTime(dt)
             rate.sleep()
         self.pubs["publish_done"].publish(Empty())
         rospy.loginfo("Finish publishing queue ({})".format(n))
