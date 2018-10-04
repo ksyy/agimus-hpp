@@ -5,6 +5,7 @@ from .client import HppClient
 from agimus_sot_msgs.msg import *
 from agimus_sot_msgs.srv import *
 import ros_tools
+from .tools import *
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import JointState
 import Queue
@@ -20,13 +21,6 @@ def _fillVector(input, segments):
     for s in segments:
         output.extend (input[s[0]:s[0]+s[1]])
     return output
-
-def listToVector3(l):
-    return Vector3 (l[0], l[1], l[2])
-def listToQuaternion(l):
-    return Quaternion (l[0], l[1], l[2], l[3])
-def listToTransform(l):
-    return Transform(listToVector3(l[0:3]), listToQuaternion(l[3:7]))
 
 def init_node ():
     rospy.init_node('joint_path_command_publisher')
@@ -346,11 +340,9 @@ class HppOutputQueue(HppClient):
             qout.extend(qin[segment[0]:segment[1]])
         if self.rootJointName is not None:
             rootpos = client.robot.getJointPosition(self.rootJointName)
-            from hpp import Quaternion
-            q = Quaternion(rootpos[3:7])
             # TODO although it is weird, the root joint may not be at
             # position 0
-            qout[0:self.rootJointSizes[0]] = rootpos[0:3] + q.toRPY().tolist()
+            qout[0:self.rootJointSizes[0]] = hppPoseToSotTransRPY (rootpos[0:7])
         return Vector(qout)
 
     def _readVelocityAtParam (self, client, data):
