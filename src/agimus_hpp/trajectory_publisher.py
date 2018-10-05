@@ -182,7 +182,7 @@ class HppOutputQueue(HppClient):
         ## Publication frequency
         self.frequency = 1. / rospy.get_param ("/sot_controller/dt") # Hz
         ## Queue size should be adapted according to the queue size in SoT
-        self.queue_size = 10 * self.frequency
+        self.queue_size = 1024
         self.queue = Queue.Queue (self.queue_size)
 
         self.setJointNames (SetJointNamesRequest(self._hpp().robot.getJointNames()))
@@ -440,16 +440,15 @@ class HppOutputQueue(HppClient):
         return std_srvs.srv.EmptyResponse()
 
     def publish(self, empty):
-        import time
         rospy.loginfo("Start publishing queue (size is {})".format(self.queue.qsize()))
         # The queue in SOT should have about 100ms of points
         n = 0
-        advance = 1.5 * self.frequency / 10. # Begin with 150ms of points
-        start = time.time()
+        advance = 0.150 * self.frequency # Begin with 150ms of points
+        start = rospy.Time.now()
         # highrate = rospy.Rate (5 * self.frequency)
         rate = rospy.Rate (10) # Send 100ms every 100ms
         while not self.queue.empty() or self.reading:
-            dt = time.time() - start
+            dt = (rospy.Time.now() - start).to_sec()
             nstar = advance + dt * self.frequency
             while n < nstar and not self.queue.empty():
                 self.publishNext()
