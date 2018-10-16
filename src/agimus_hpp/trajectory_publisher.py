@@ -140,7 +140,7 @@ class HppOutputQueue(HppClient):
                     "add_center_of_mass_velocity": [ SetString, "addCenterOfMassVelocity", ],
                     "add_operational_frame_velocity": [ SetString, "addOperationalFrameVelocity", ],
 
-                    "publish_first": [ std_srvs.srv.Empty, "publishFirst", ],
+                    "publish_first": [ std_srvs.srv.Trigger, "publishFirst", ],
                     "get_queue_size": [ GetInt, "getQueueSize", ],
                     }
                 }
@@ -429,15 +429,22 @@ class HppOutputQueue(HppClient):
     def readSub (self, msg):
         self._read (msg.id, msg.start, msg.length)
 
-    def publishFirst(self, empty):
-        if self.firstMsgs is not None:
-            for topic, msg in zip(self.topics, self.firstMsgs):
-                topic.publish (msg)
-            rospy.loginfo("Published first message")
-            self.firstMsgs = None
-        else:
+    def publishFirst(self, trigger):
+        count = 1000
+        rate = rospy.Rate (count)
+        if self.firstMsgs is None:
+            rospy.logwarn ("First message not ready yet. Keep trying during one second.")
+        while self.firstMsgs is None and count > 0:
+            rate.sleep()
+            count -= 1
+        if self.firstMsgs is None:
             rospy.logerr("Could not print first message")
-        return std_srvs.srv.EmptyResponse()
+            return False, "First message not ready yet. Did you call read_path ?"
+
+        for topic, msg in zip(self.topics, self.firstMsgs):
+            topic.publish (msg)
+        self.firstMsgs = None
+        return True, ""
 
     def publish(self, empty):
         rospy.loginfo("Start publishing queue (size is {})".format(self.queue.qsize()))
