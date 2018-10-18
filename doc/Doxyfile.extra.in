@@ -1,3 +1,6 @@
+# Empty include path because there is not directory include
+INCLUDE_PATH           =
+
 INPUT                  = @PROJECT_SOURCE_DIR@/src/agimus_hpp \
                          @PROJECT_SOURCE_DIR@/doc/
 FILE_PATTERNS          = *.py *.hh
