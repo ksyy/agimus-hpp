@@ -11,17 +11,17 @@ import ros_tools
 #
 # It handles connection with hpp-corbaserver and hpp-manipulation-corba
 class HppClient(object):
-    def __init__ (self, postContextId = ""):
-        self.postContextId = postContextId
+    def __init__ (self, context = "corbaserver"):
+        self.context = context
         self.setHppUrl()
 
     def setHppUrl (self):
         self._connect()
 
     def _connect(self):
-        self.hpp = hpp.corbaserver.Client(postContextId = self.postContextId)
+        self.hpp = hpp.corbaserver.Client(context = self.context)
         try:
-            cl = hpp.corbaserver.manipulation.robot.CorbaClient (postContextId = self.postContextId)
+            cl = hpp.corbaserver.manipulation.robot.CorbaClient (context = self.context)
             self.manip = cl.manipulation
             self.robot = hpp.corbaserver.manipulation.robot.Robot (client = cl)
             self.problemSolver = hpp.corbaserver.manipulation.ProblemSolver(self.robot)
