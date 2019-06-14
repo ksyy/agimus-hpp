@@ -9,7 +9,7 @@ import ros_tools
 
 ## Handles connection with HPP servers
 #
-# It handles connection with hpp-corbaserver and hpp-manipulation-corba
+# It handles connection with hppcorbaserver
 class HppClient(object):
     def __init__ (self, context = "corbaserver"):
         self.context = context
@@ -32,7 +32,7 @@ class HppClient(object):
             self.problemSolver = hpp.corbaserver.ProblemSolver(self.robot)
         rospy.loginfo("Connected to hpp")
 
-    ## Get the hpp-corbaserver client.
+    ## Get the hppcorbaserver client.
     ## It handles reconnection if needed.
     ## \todo rename me
     def _hpp (self, reconnect = True):
@@ -46,7 +46,7 @@ class HppClient(object):
             else: raise e
         return self.hpp
 
-    ## Get the hpp-manipulation-corba client.
+    ## Get the hppcorbaserver manipulation client.
     ## It handles reconnection if needed.
     ## \todo rename me
     def _manip (self, reconnect = True):

@@ -72,8 +72,6 @@ class Estimation(HppClient):
         self.tf_pub = TransformBroadcaster()
         self.tf_root = "world"
 
-        self.setHppUrl()
-
         self.mutex = Lock()
 
         self.robot_name = rospy.get_param("robot_name", "")
