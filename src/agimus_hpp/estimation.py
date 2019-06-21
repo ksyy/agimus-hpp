@@ -61,7 +61,7 @@ class Estimation(HppClient):
 
     def __init__ (self, continuous_estimation = False,
              joint_states_topic="/joint_states"):
-        super(Estimation, self).__init__ (postContextId = "_estimation")
+        super(Estimation, self).__init__ (context = "estimation")
 
         self.subscribers = ros_tools.createSubscribers (self, "/agimus", self.subscribersDict)
         self.publishers  = ros_tools.createPublishers ("/agimus", self.publishersDict)
