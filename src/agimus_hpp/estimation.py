@@ -43,6 +43,9 @@ class Estimation(HppClient):
             "vision": {
                 "tags": [TransformStamped, "get_visual_tag"],
                 },
+            "sot": {
+                "base_pose_estimation": [TransformStamped, "get_base_pose_estimation"],
+                },
             }
     ## Provided services (prefixed by "/agimus")
     servicesDict = {
@@ -60,13 +63,10 @@ class Estimation(HppClient):
             }
 
     def __init__ (self, continuous_estimation = False,
-             joint_states_topic="/joint_states"):
+             joint_states_topic="/joint_states",
+             visual_tags_enabled=True):
         super(Estimation, self).__init__ (context = "estimation")
 
-        self.subscribers = ros_tools.createSubscribers (self, "/agimus", self.subscribersDict)
-        self.publishers  = ros_tools.createPublishers ("/agimus", self.publishersDict)
-        self.services    = ros_tools.createServices (self, "/agimus", self.servicesDict)
-        self.joint_state_subs = rospy.Subscriber (joint_states_topic, JointState, self.get_joint_state)
         self.locked_joints = []
 
         self.tf_pub = TransformBroadcaster()
@@ -84,8 +84,15 @@ class Estimation(HppClient):
 
         self.current_stamp = rospy.Time.now()
         self.current_visual_tag_constraints = list()
+        self.visual_tags_enabled = visual_tags_enabled
 
         self.continuous_estimation (SetBoolRequest(continuous_estimation))
+        self.estimation_rate = 50 # Hz
+
+        self.subscribers = ros_tools.createSubscribers (self, "/agimus", self.subscribersDict)
+        self.publishers  = ros_tools.createPublishers ("/agimus", self.publishersDict)
+        self.services    = ros_tools.createServices (self, "/agimus", self.servicesDict)
+        self.joint_state_subs = rospy.Subscriber (joint_states_topic, JointState, self.get_joint_state)
 
     def continuous_estimation(self, msg):
         self.run_continuous_estimation = msg.data
@@ -93,7 +100,7 @@ class Estimation(HppClient):
         return True, "ok"
 
     def spin (self):
-        rate = rospy.Rate(50)
+        rate = rospy.Rate(self.estimation_rate)
         while not rospy.is_shutdown():
             if self.run_continuous_estimation and self.last_stamp_is_ready:
                 rospy.logdebug("Runnning estimation...")
@@ -150,7 +157,10 @@ class Estimation(HppClient):
     # By default, only the child joints of universe are published.
     def publish_state (self, hpp):
         robot_name = hpp.robot.getRobotName()
-        for jn in hpp.robot.getChildJointNames('universe'):
+        if not hasattr(self, 'universe_child_joint_names'):
+            self.universe_child_joint_names = [ jn for jn in hpp.robot.getJointNames() if "universe" == hpp.robot.getParentJointName(jn) ]
+            rospy.loginfo("Will publish joints {0}".format(self.universe_child_joint_names))
+        for jn in self.universe_child_joint_names:
             links = hpp.robot.getLinkNames(jn)
             for l in links:
                 T = hpp.robot.getLinkPosition (l)
@@ -237,42 +247,56 @@ class Estimation(HppClient):
         finally:
             self.mutex.release()
 
-    def get_visual_tag (self, ts_msg):
-        stamp = ts_msg.header.stamp
-        if stamp < self.current_stamp: return
-        self.mutex.acquire()
-        try:
-            hpp = self._hpp()
+    def _get_transformation_constraint (self,
+            joint1, joint2, transform,
+            prefix = "", orientationWeight = 1.):
+        hpp = self._hpp()
 
-            # Create a relative transformation constraint
-            j1 = ts_msg.header.frame_id
-            j2 = ts_msg.child_frame_id
-            name = j1 + "_" + j2
-            T = [ ts_msg.transform.translation.x,
-                  ts_msg.transform.translation.y,
-                  ts_msg.transform.translation.z,
-                  ts_msg.transform.rotation.x,
-                  ts_msg.transform.rotation.y,
-                  ts_msg.transform.rotation.z,
-                  ts_msg.transform.rotation.w,]
-            # Compute scalar product between Z axis of camera and of tag.
-            # TODO Add a weight between translation and orientation
-            # It should depend on:
-            # - the distance (the farthest, the hardest it is to get the orientation)
-            distW = 1.
-            # - the above scalar product (the closest to 0, the hardest it is to get the orientation)
-            from hpp import Quaternion
-            from numpy import array
-            oriW = - Quaternion(T[3:]).transform(array([0,0,1]))[2]
-            # - the tag size (for an orthogonal tag, an error theta in orientation should be considered
-            #   equivalent to an position error of theta * tag_size)
-            tagsize = 0.063 * 4 # tag size * 4
-            s = tagsize * oriW * distW
+        # Create a relative transformation constraint
+        j1 = joint1
+        j2 = joint2
+        name = prefix + j1 + "_" + j2
+        T = [ transform.translation.x,
+              transform.translation.y,
+              transform.translation.z,
+              transform.rotation.x,
+              transform.rotation.y,
+              transform.rotation.z,
+              transform.rotation.w,]
+        if orientationWeight == 1.:
+            names = ["T_"+name, ]
+            hpp.problem.createTransformationConstraint (names[0], j1, j2, T, [True,]*6)
+        else:
             names = ["P_"+name, "sO_"+name]
             hpp.problem.createPositionConstraint (names[0], j1, j2, T[:3], [0,0,0], [True,]*3)
             hpp.problem.createOrientationConstraint ("O_"+name, j1, j2, Quaternion(T[3:]).inv().toTuple(), [True,]*3)
-            hpp.problem.scCreateScalarMultiply (names[1], s, "O_"+name)
+            hpp.problem.scCreateScalarMultiply (names[1], orientationWeight, "O_"+name)
+        return names
 
+    def get_visual_tag (self, ts_msg):
+        stamp = ts_msg.header.stamp
+        if stamp < self.current_stamp: return
+
+        rot = ts_msg.transform.rotation
+        # Compute scalar product between Z axis of camera and of tag.
+        # TODO Add a weight between translation and orientation
+        # It should depend on:
+        # - the distance (the farthest, the hardest it is to get the orientation)
+        distW = 1.
+        # - the above scalar product (the closest to 0, the hardest it is to get the orientation)
+        from hpp import Quaternion
+        from numpy import array
+        oriW = - Quaternion([rot.x, rot.y, rot.z, rot.w,]).transform(array([0,0,1]))[2]
+        # - the tag size (for an orthogonal tag, an error theta in orientation should be considered
+        #   equivalent to an position error of theta * tag_size)
+        tagsize = 0.063 * 4 # tag size * 4
+        s = tagsize * oriW * distW
+        try:
+            self.mutex.acquire()
+
+            names = self._get_transformation_constraint (
+                ts_msg.header.frame_id, ts_msg.child_frame_id, ts_msg.transform,
+                prefix="", orientationWeight = s)
             # If this tag is in the next image:
             if self.current_stamp < stamp:
                 # Assume no more visual tag will be received from image at time current_stamp.
@@ -283,5 +307,33 @@ class Estimation(HppClient):
                 self.current_visual_tag_constraints = list()
                 self.last_stamp_is_ready = True
             self.current_visual_tag_constraints.extend(names)
+        finally:
+            self.mutex.release()
+
+    def get_base_pose_estimation (self, ts_msg):
+        stamp = ts_msg.header.stamp
+        if stamp < self.current_stamp: return
+
+        self.mutex.acquire()
+        try:
+            hpp = self._hpp()
+            robot_name = hpp.robot.getRobotName()
+
+            names = self._get_transformation_constraint (
+                    "universe", robot_name + "/root_joint", ts_msg.transform,
+                    prefix="base/", orientationWeight=1.)
+
+            # TODO we should consider the stamp which is the closest to self.current_stamp
+            if names[0] not in self.current_visual_tag_constraints:
+                self.current_visual_tag_constraints.extend(names)
+
+            if not self.visual_tags_enabled:
+                # Assume no more visual tag will be received from image at time current_stamp.
+                self.last_stamp = self.current_stamp
+                self.last_visual_tag_constraints = self.current_visual_tag_constraints
+                # Reset for next image.
+                self.current_stamp = stamp
+                self.current_visual_tag_constraints = list()
+                self.last_stamp_is_ready = True
         finally:
             self.mutex.release()
