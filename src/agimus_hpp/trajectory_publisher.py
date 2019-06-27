@@ -5,6 +5,7 @@ from .client import HppClient
 from agimus_sot_msgs.msg import *
 from agimus_sot_msgs.srv import *
 import ros_tools
+from .tools import *
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import JointState
 import Queue
@@ -20,13 +21,6 @@ def _fillVector(input, segments):
     for s in segments:
         output.extend (input[s[0]:s[0]+s[1]])
     return output
-
-def listToVector3(l):
-    return Vector3 (l[0], l[1], l[2])
-def listToQuaternion(l):
-    return Quaternion (l[0], l[1], l[2], l[3])
-def listToTransform(l):
-    return Transform(listToVector3(l[0:3]), listToQuaternion(l[3:7]))
 
 def init_node ():
     rospy.init_node('joint_path_command_publisher')
@@ -146,7 +140,7 @@ class HppOutputQueue(HppClient):
                     "add_center_of_mass_velocity": [ SetString, "addCenterOfMassVelocity", ],
                     "add_operational_frame_velocity": [ SetString, "addOperationalFrameVelocity", ],
 
-                    "publish_first": [ std_srvs.srv.Empty, "publishFirst", ],
+                    "publish_first": [ std_srvs.srv.Trigger, "publishFirst", ],
                     "get_queue_size": [ GetInt, "getQueueSize", ],
                     }
                 }
@@ -181,37 +175,15 @@ class HppOutputQueue(HppClient):
         def publish (self, msg):
             assert msg==None
             self.pub.publish(self.msg)
-    class SentToViewer (object):
-        def __init__ (self, parent):
-            self.parent = parent
-
-        def read (self, hpp, uv):
-            if uv:
-                pos = list()
-                for j, prefix, o in self.parent.viewer.robotBodies:
-                    pos.append ( (prefix + o, hpp.robot.getLinkPosition (o) ) )
-                return tuple(pos)
-            else:
-                return ()
-
-        def publish (self, msg):
-            if not isinstance(msg, (tuple, list)) or len(msg) == 0: return
-            for name, pos in msg:
-                self.parent.viewer.client.gui.applyConfiguration(name, pos)
-            self.parent.viewer.client.gui.refresh()
 
     def __init__ (self):
-        super(HppOutputQueue, self).__init__ (withViewer = False)
+        super(HppOutputQueue, self).__init__ ()
 
         ## Publication frequency
         self.frequency = 1. / rospy.get_param ("/sot_controller/dt") # Hz
-        ## \todo visualization is not handle by this class anymore.
-        self.viewerFreq = 25 # Hz
         ## Queue size should be adapted according to the queue size in SoT
-        self.queue_size = 10 * self.frequency
+        self.queue_size = 1024
         self.queue = Queue.Queue (self.queue_size)
-        ## \todo visualization is not handle by this class anymore.
-        self.queueViewer = deque ()
 
         self.setJointNames (SetJointNamesRequest(self._hpp().robot.getJointNames()))
 
@@ -224,7 +196,6 @@ class HppOutputQueue(HppClient):
         self.resetTopics ()
 
     def resetTopics (self, msg = None):
-        self.topicViewer = self.SentToViewer (self)
         self.topics = [
                 self.Topic (self._readConfigAtParam  , "position", Vector),
                 self.Topic (self._readVelocityAtParam, "velocity", Vector),
@@ -369,11 +340,9 @@ class HppOutputQueue(HppClient):
             qout.extend(qin[segment[0]:segment[1]])
         if self.rootJointName is not None:
             rootpos = client.robot.getJointPosition(self.rootJointName)
-            from hpp import Quaternion
-            q = Quaternion(rootpos[3:7])
             # TODO although it is weird, the root joint may not be at
             # position 0
-            qout[0:self.rootJointSizes[0]] = rootpos[0:3] + q.toRPY().tolist()
+            qout[0:self.rootJointSizes[0]] = hppPoseToSotTransRPY (rootpos[0:7])
         return Vector(qout)
 
     def _readVelocityAtParam (self, client, data):
@@ -418,12 +387,10 @@ class HppOutputQueue(HppClient):
         rospy.logerr ("Link velocity cannot be obtained from HPP")
         return Vector()
 
-    def readAt (self, pathId, time, uv = False, timeShift = 0):
+    def readAt (self, pathId, time, timeShift = 0):
         hpp = self._hpp()
         hpp.robot.setCurrentConfig( hpp.problem.configAtParam (pathId, time))
         hpp.robot.setCurrentVelocity( hpp.problem.derivativeAtParam (pathId, 1, time))
-        if uv:
-            self.queueViewer.append ((time - timeShift, self.topicViewer.read (hpp, uv)))
         msgs = []
         for topic in self.topics:
             msgs.append (topic.read(hpp))
@@ -436,17 +403,6 @@ class HppOutputQueue(HppClient):
             topic.publish (msg)
         self.queue.task_done()
 
-    def publishViewerAtTime (self, time):
-        if hasattr(self, "viewer"):
-            while len(self.queueViewer) > 0:
-                # There is no message in queueViewer
-                t, msg = self.queueViewer[0]
-                if t < time - 1. / self.frequency:
-                    self.topicViewer.publish (msg)
-                    self.queueViewer.popleft()
-                else:
-                    break
-
     def _read (self, pathId, start, L):
         from math import ceil, floor
         N = int(ceil(abs(L) * self.frequency))
@@ -456,14 +412,9 @@ class HppOutputQueue(HppClient):
         times = (-1 if L < 0 else 1 ) *np.array(range(N+1), dtype=float) / self.frequency
         times[-1] = L
         times += start
-        Nv = int(ceil(float(self.frequency) / float(self.viewerFreq)))
-        updateViewer = [ False ] * (N+1)
-        if hasattr(self, "viewer"):
-            for i in range(0,len(updateViewer), Nv): updateViewer[i] = True
-            updateViewer[-1] = True
         self.firstMsgs = None
-        for t, uv in zip(times, updateViewer):
-            msgs = self.readAt(pathId, t, uv, timeShift = start)
+        for t in times:
+            msgs = self.readAt(pathId, t, timeShift = start)
             if self.firstMsgs is None: self.firstMsgs = msgs
         self.pubs["read_path_done"].publish(UInt32(pathId))
         rospy.loginfo("Finish reading path {}".format(pathId))
@@ -478,38 +429,38 @@ class HppOutputQueue(HppClient):
     def readSub (self, msg):
         self._read (msg.id, msg.start, msg.length)
 
-    def publishFirst(self, empty):
-        if self.firstMsgs is not None:
-            for topic, msg in zip(self.topics, self.firstMsgs):
-                topic.publish (msg)
-            rospy.loginfo("Published first message")
-            self.firstMsgs = None
-        else:
+    def publishFirst(self, trigger):
+        count = 1000
+        rate = rospy.Rate (count)
+        if self.firstMsgs is None:
+            rospy.logwarn ("First message not ready yet. Keep trying during one second.")
+        while self.firstMsgs is None and count > 0:
+            rate.sleep()
+            count -= 1
+        if self.firstMsgs is None:
             rospy.logerr("Could not print first message")
-        return std_srvs.srv.EmptyResponse()
+            return False, "First message not ready yet. Did you call read_path ?"
+
+        for topic, msg in zip(self.topics, self.firstMsgs):
+            topic.publish (msg)
+        self.firstMsgs = None
+        return True, ""
 
     def publish(self, empty):
-        import time
         rospy.loginfo("Start publishing queue (size is {})".format(self.queue.qsize()))
         # The queue in SOT should have about 100ms of points
         n = 0
-        advance = 1.5 * self.frequency / 10. # Begin with 150ms of points
-        start = time.time()
+        advance = 0.150 * self.frequency # Begin with 150ms of points
+        start = rospy.Time.now()
         # highrate = rospy.Rate (5 * self.frequency)
         rate = rospy.Rate (10) # Send 100ms every 100ms
         while not self.queue.empty() or self.reading:
-            dt = time.time() - start
+            dt = (rospy.Time.now() - start).to_sec()
             nstar = advance + dt * self.frequency
             while n < nstar and not self.queue.empty():
                 self.publishNext()
                 n += 1
                 # highrate.sleep()
-            self.publishViewerAtTime(dt)
-            rate.sleep()
-        rate = rospy.Rate(self.viewerFreq)
-        while len(self.queueViewer) > 0:
-            dt = time.time() - start
-            self.publishViewerAtTime(dt)
             rate.sleep()
         self.pubs["publish_done"].publish(Empty())
         rospy.loginfo("Finish publishing queue ({})".format(n))

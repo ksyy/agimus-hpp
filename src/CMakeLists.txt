@@ -5,6 +5,7 @@ SET (PYTHON_FILE
     hpp_server_initializer.py
     client.py
     ros_tools.py
+    tools.py
     __init__.py)
 
 FOREACH(F ${PYTHON_FILE})

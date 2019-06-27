@@ -1,15 +1,21 @@
 import rospy
 
-## Wait indefinitely for a service.
+## Wait indefinitely for a service, return a ServiceProxy if found and a type has been provided
 ## \param srv the service name
-## \param time after which a warning is printed using rospy.logwarn
-def wait_for_service (srv, time = 0.2):
+## \param service_type of the service
+## \param timeout until a warning is printed using rospy.logwarn
+## \return a proxy to the service if service_type is given
+def wait_for_service(srv, service_type = None, time=0.2):
     try:
         rospy.wait_for_service(srv, time)
     except rospy.ROSException:
         rospy.logwarn("Waiting for service: {0}".format(srv))
         rospy.wait_for_service(srv)
         rospy.logwarn("Service {0} found.".format(srv))
+    if service_type is not None:
+        return rospy.ServiceProxy(srv, service_type)
+    else:
+        return None
 
 ## Internal function. Use createSubscribers or createPublishers instead.
 ## \param subscribe boolean whether this node should subscribe to the topics.
@@ -71,8 +77,7 @@ def _createServices (object, namespace, services, serve):
                 raise NotImplementedError("Class `{}` does not implement `{}`".format(object.__class__.__name__, services[1]))
             return rospy.Service(namespace, services[0], callback)
         else:
-            wait_for_service (namespace)
-            return rospy.ServiceProxy(namespace, services[0])
+            return wait_for_service(namespace, services[0])
 
 ## Create rospy.Service.
 ## See \ref createSubscribers for a description of the parameters
