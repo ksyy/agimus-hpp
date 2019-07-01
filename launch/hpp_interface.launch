@@ -15,7 +15,7 @@
       machine="$(arg machine)"
       output="screen" />
     <node name="hpp_estimation" pkg="agimus_hpp" type="estimation.py"
-      args="--continuous-estimation"
+      args="--continuous-estimation --estimation-rate 5"
       machine="$(arg machine)"
       output="screen" />
   </group>
